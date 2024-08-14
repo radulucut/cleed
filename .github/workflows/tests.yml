@@ -1,0 +1,26 @@
+name: Tests
+on:
+  pull_request:
+    branches: [main]
+
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.22"]
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+    name: ${{ matrix.os }} Go ${{ matrix.go }} Tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Run tests
+        run: go test ./... -v -timeout 30s

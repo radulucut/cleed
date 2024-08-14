@@ -1,5 +1,6 @@
 .DS_Store
 bin/
+dist/
 
 # Binaries for programs and plugins
 *.exe

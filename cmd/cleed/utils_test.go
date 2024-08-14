@@ -1,4 +1,4 @@
-package main
+package cleed
 
 import (
 	"testing"

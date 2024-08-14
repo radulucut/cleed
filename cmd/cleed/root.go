@@ -1,4 +1,4 @@
-package main
+package cleed
 
 import (
 	"fmt"
@@ -11,15 +11,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.1.0"
+var Version string
 
-func main() {
+func Execute() {
 	time := utils.NewTime()
 	printer := internal.NewPrinter(os.Stdin, os.Stdout, os.Stderr)
 	storage := storage.NewLocalStorage("cleed", time)
 	feed := internal.NewTerminalFeed(time, printer, storage)
-	feed.SetAgent(fmt.Sprintf("cleed/v%s (github.com/radulucut/cleed)", version))
-	root, err := NewRoot(version, time, printer, storage, feed)
+	feed.SetAgent(fmt.Sprintf("cleed/v%s (github.com/radulucut/cleed)", Version))
+	root, err := NewRoot(Version, time, printer, storage, feed)
 	if err != nil {
 		printer.ErrPrintf("Error: %v\n", err)
 	}

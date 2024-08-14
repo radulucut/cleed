@@ -4,6 +4,8 @@ Simple feed reader for the command line.
 
 ![Test](https://github.com/radulucut/cleed/actions/workflows/tests.yml/badge.svg)
 
+![Screenshot](./screenshot.png)
+
 ## Usage
 
 #### Follow a feed

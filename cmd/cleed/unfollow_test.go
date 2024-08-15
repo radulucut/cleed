@@ -271,8 +271,7 @@ https://test.com was removed from the list
 		ETag:      "etag",
 	}, cacheInfo["https://test.com"])
 
-	_, err = os.Stat("https://example.com")
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.NoFileExists(t, path.Join(cacheDir, "feed_"+url.QueryEscape("https://example.com")))
 
 	b, err := os.ReadFile(path.Join(cacheDir, "feed_"+url.QueryEscape("https://test.com")))
 	if err != nil {

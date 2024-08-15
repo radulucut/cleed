@@ -98,7 +98,7 @@ func (f *TerminalFeed) Lists() error {
 }
 
 func (f *TerminalFeed) ListFeeds(list string) error {
-	feeds, err := f.storage.GetFeedFromList(list)
+	feeds, err := f.storage.GetFeedsFromList(list)
 	if err != nil {
 		return utils.NewInternalError("failed to list feeds: " + err.Error())
 	}
@@ -197,7 +197,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions) ([]*FeedItem, error) {
 	}
 	feeds := make(map[string]*storage.ListItem)
 	for i := range lists {
-		f.storage.LoadFeedFromList(feeds, lists[i])
+		f.storage.LoadFeedsFromList(feeds, lists[i])
 	}
 	cacheInfo, err := f.storage.LoadCacheInfo()
 	if err != nil {

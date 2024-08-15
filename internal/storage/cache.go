@@ -87,6 +87,28 @@ func (s *LocalStorage) OpenFeedCache(name string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
+func (s *LocalStorage) RemoveFeedCaches(names []string) error {
+	cacheinfo, err := s.LoadCacheInfo()
+	if err != nil {
+		return err
+	}
+	for i := range names {
+		delete(cacheinfo, names[i])
+	}
+	err = s.SaveCacheInfo(cacheinfo)
+	if err != nil {
+		return err
+	}
+	for i := range names {
+		path, err := s.joinCacheDir("feed_" + url.QueryEscape(names[i]))
+		if err != nil {
+			continue
+		}
+		os.Remove(path)
+	}
+	return nil
+}
+
 func getCacheInfoItemLine(item *CacheInfoItem) []byte {
 	return []byte(fmt.Sprintf("%s %d %s\n", item.URL, item.LastCheck.Unix(), url.QueryEscape(item.ETag)))
 }

@@ -6,9 +6,10 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/radulucut/cleed/internal"
-	"github.com/radulucut/cleed/internal/storage"
+	_storage "github.com/radulucut/cleed/internal/storage"
 	"github.com/radulucut/cleed/mocks"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -23,7 +24,7 @@ func Test_Unfollow_Default(t *testing.T) {
 
 	out := new(bytes.Buffer)
 	printer := internal.NewPrinter(nil, out, out)
-	storage := storage.NewLocalStorage("cleed_test", timeMock)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
 	defer localStorageCleanup(t, storage)
 
 	configDir, err := os.UserConfigDir()
@@ -84,7 +85,7 @@ func Test_Unfollow_Custom_List(t *testing.T) {
 
 	out := new(bytes.Buffer)
 	printer := internal.NewPrinter(nil, out, out)
-	storage := storage.NewLocalStorage("cleed_test", timeMock)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
 	defer localStorageCleanup(t, storage)
 
 	configDir, err := os.UserConfigDir()
@@ -146,7 +147,7 @@ func Test_Unfollow_No_List(t *testing.T) {
 
 	out := new(bytes.Buffer)
 	printer := internal.NewPrinter(nil, out, out)
-	storage := storage.NewLocalStorage("cleed_test", timeMock)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
 	defer localStorageCleanup(t, storage)
 
 	feed := internal.NewTerminalFeed(timeMock, printer, storage)
@@ -159,4 +160,122 @@ func Test_Unfollow_No_List(t *testing.T) {
 
 	err = root.Cmd.Execute()
 	assert.EqualError(t, err, "no items in list: default")
+}
+
+func Test_Unfollow_Clean_Cache(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(path.Join(listsDir, "default"),
+		[]byte(fmt.Sprintf("%d %s\n%d %s\n",
+			defaultCurrentTime.Unix(), "https://example.com",
+			defaultCurrentTime.Unix(), "https://test.com",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(path.Join(listsDir, "test"),
+		[]byte(fmt.Sprintf("%d %s\n",
+			defaultCurrentTime.Unix(), "https://test.com",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cacheDir = path.Join(cacheDir, "cleed_test")
+	err = os.MkdirAll(cacheDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = storage.SaveCacheInfo(map[string]*_storage.CacheInfoItem{
+		"https://example.com": {
+			URL:       "https://example.com",
+			LastCheck: defaultCurrentTime,
+			ETag:      "etag",
+		},
+		"https://test.com": {
+			URL:       "https://test.com",
+			LastCheck: defaultCurrentTime,
+			ETag:      "etag",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = storage.SaveFeedCache(bytes.NewBuffer([]byte("example")), "https://example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = storage.SaveFeedCache(bytes.NewBuffer([]byte("test")), "https://test.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "unfollow", "https://example.com", "https://test.com"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, `https://example.com was removed from the list
+https://test.com was removed from the list
+`, out.String())
+
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Len(t, files, 2)
+
+	cacheInfo, err := storage.LoadCacheInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Len(t, cacheInfo, 1)
+	assert.Equal(t, &_storage.CacheInfoItem{
+		URL:       "https://test.com",
+		LastCheck: time.Unix(defaultCurrentTime.Unix(), 0),
+		ETag:      "etag",
+	}, cacheInfo["https://test.com"])
+
+	_, err = storage.OpenFeedCache("https://example.com")
+	assert.Error(t, err)
+	f, err := storage.OpenFeedCache("https://test.com")
+	assert.NoError(t, err)
+	b := new(bytes.Buffer)
+	_, err = b.ReadFrom(f)
+	assert.NoError(t, err)
+	assert.Equal(t, "test", b.String())
 }

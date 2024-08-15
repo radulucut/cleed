@@ -26,7 +26,7 @@ func (s *LocalStorage) AddToList(urls []string, list string) error {
 	}
 	defer f.Close()
 	m := make(map[string]*ListItem)
-	err = s.LoadFeedFromList(m, list)
+	err = s.LoadFeedsFromList(m, list)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (s *LocalStorage) AddToList(urls []string, list string) error {
 }
 
 func (s *LocalStorage) RemoveFromList(urls []string, list string) ([]bool, error) {
-	l, err := s.GetFeedFromList(list)
+	l, err := s.GetFeedsFromList(list)
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +79,11 @@ func (s *LocalStorage) RemoveFromList(urls []string, list string) ([]bool, error
 	if err != nil {
 		return nil, err
 	}
+	s.tidyCachesAfterRemove(urls, list)
 	return results, nil
 }
 
-func (s *LocalStorage) GetFeedFromList(list string) ([]*ListItem, error) {
+func (s *LocalStorage) GetFeedsFromList(list string) ([]*ListItem, error) {
 	path, err := s.joinListsDir(list)
 	if err != nil {
 		return nil, err
@@ -107,7 +108,7 @@ func (s *LocalStorage) GetFeedFromList(list string) ([]*ListItem, error) {
 	return l, scanner.Err()
 }
 
-func (s *LocalStorage) LoadFeedFromList(m map[string]*ListItem, list string) error {
+func (s *LocalStorage) LoadFeedsFromList(m map[string]*ListItem, list string) error {
 	path, err := s.joinListsDir(list)
 	if err != nil {
 		return err
@@ -148,6 +149,33 @@ func (s *LocalStorage) LoadLists() ([]string, error) {
 		lists = append(lists, file.Name())
 	}
 	return lists, nil
+}
+
+func (s *LocalStorage) tidyCachesAfterRemove(urls []string, list string) {
+	lists, err := s.LoadLists()
+	if err != nil {
+		return
+	}
+	m := make(map[string]*ListItem)
+	if len(lists) != 0 {
+		for i := range lists {
+			if lists[i] == list {
+				continue
+			}
+			err = s.LoadFeedsFromList(m, lists[i])
+			if err != nil {
+				return
+			}
+		}
+	}
+	feedsToRemove := make([]string, 0)
+	for i := range urls {
+		_, ok := m[urls[i]]
+		if !ok {
+			feedsToRemove = append(feedsToRemove, urls[i])
+		}
+	}
+	s.RemoveFeedCaches(feedsToRemove)
 }
 
 func getListItemLine(

@@ -140,10 +140,13 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 		}
 		return 0
 	})
-	l := min(len(items), opts.Limit)
+	l := len(items)
 	if l == 0 {
 		f.printer.ErrPrintln("no items to display")
 		return nil
+	}
+	if opts.Limit > 0 {
+		l = min(len(items), opts.Limit)
 	}
 	cellMax := [2]int{}
 	for i := l - 1; i >= 0; i-- {

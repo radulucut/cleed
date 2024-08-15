@@ -73,11 +73,11 @@ Examples:
   # Display feeds from a specific list
   cleed --list my-list
 
-  # Display feeds from the last 1 day
-  cleed --last 1d
-
   # Display feeds since a specific date
   cleed --since "2024-01-01 12:03:04"
+
+  # Display feeds from the last 1 day
+  cleed --since 1d
 
   # Display feeds from a specific list and limit the number of feeds
   cleed --list my-list --limit 10
@@ -91,9 +91,8 @@ Examples:
 
 	flags := root.Cmd.Flags()
 	flags.StringP("list", "L", "", "list to display feeds from")
-	flags.Int("limit", 50, "number of feeds to display")
-	flags.String("last", "", "only display feeds from the last duration (e.g. 1d1h1m)")
-	flags.String("since", "", "only display feeds since a specific date (e.g. 2024-01-01 12:03:04)")
+	flags.Uint("limit", 50, "number of feeds to display")
+	flags.String("since", "", "only display feeds since a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
 
 	root.initVersion()
 	root.initFollow()
@@ -104,28 +103,26 @@ Examples:
 }
 
 func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
-	limit, err := cmd.Flags().GetInt("limit")
+	limit, err := cmd.Flags().GetUint("limit")
 	if err != nil {
 		return err
 	}
-	lastFlag := cmd.Flag("last").Value.String()
 	sinceFlag := cmd.Flag("since").Value.String()
 	since := time.Time{}
-	if lastFlag != "" {
-		d, err := utils.ParseDuration(lastFlag)
-		if err != nil {
-			return err
-		}
-		since = r.time.Now().Add(-d)
-	} else if sinceFlag != "" {
-		since, err = utils.ParseDateTime(sinceFlag)
-		if err != nil {
-			return err
+	if sinceFlag != "" {
+		d, err := utils.ParseDuration(sinceFlag)
+		if err == nil {
+			since = r.time.Now().Add(-d)
+		} else {
+			since, err = utils.ParseDateTime(sinceFlag)
+			if err != nil {
+				return fmt.Errorf("invalid since value: %v", err)
+			}
 		}
 	}
 	opts := &internal.FeedOptions{
 		List:  cmd.Flag("list").Value.String(),
-		Limit: limit,
+		Limit: int(limit),
 		Since: since,
 	}
 	return r.feed.Feed(opts)

@@ -27,11 +27,11 @@ cleed
 # Display feeds from a specific list
 cleed --list my-list
 
-# Display feeds from the last 1 day
-cleed --last 1d
-
 # Display feeds since a specific date
 cleed --since "2024-01-01 12:03:04"
+
+# Display feeds since a specific period
+cleed --since "1d"
 
 # Display feeds from a specific list and limit the number of feeds
 cleed --list my-list --limit 10

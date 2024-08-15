@@ -3,6 +3,7 @@ package cleed
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"testing"
@@ -270,12 +271,12 @@ https://test.com was removed from the list
 		ETag:      "etag",
 	}, cacheInfo["https://test.com"])
 
-	_, err = storage.OpenFeedCache("https://example.com")
-	assert.Error(t, err)
-	f, err := storage.OpenFeedCache("https://test.com")
-	assert.NoError(t, err)
-	b := new(bytes.Buffer)
-	_, err = b.ReadFrom(f)
-	assert.NoError(t, err)
-	assert.Equal(t, "test", b.String())
+	_, err = os.Stat("https://example.com")
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	b, err := os.ReadFile(path.Join(cacheDir, "feed_"+url.QueryEscape("https://test.com")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "test", string(b))
 }

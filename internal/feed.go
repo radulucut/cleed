@@ -173,6 +173,11 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 			"\n\n",
 		)
 	}
+	config, _ := f.storage.LoadConfig()
+	if config != nil {
+		config.LastRun = f.time.Now()
+		f.storage.SaveConfig()
+	}
 	return nil
 }
 

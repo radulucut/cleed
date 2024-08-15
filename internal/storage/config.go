@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"os"
+	"time"
 )
 
 const (
@@ -10,7 +11,8 @@ const (
 )
 
 type Config struct {
-	Version string `json:"version"`
+	Version string    `json:"version"`
+	LastRun time.Time `json:"lastRun"`
 }
 
 func (s *LocalStorage) LoadConfig() (*Config, error) {

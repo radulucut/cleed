@@ -79,6 +79,9 @@ Examples:
   # Display feeds from the last 1 day
   cleed --since 1d
 
+  # Display feeds since the last run
+  cleed --since last
+
   # Display feeds from a specific list and limit the number of feeds
   cleed --list my-list --limit 10
 `,
@@ -91,8 +94,8 @@ Examples:
 
 	flags := root.Cmd.Flags()
 	flags.StringP("list", "L", "", "list to display feeds from")
-	flags.Uint("limit", 50, "number of feeds to display")
-	flags.String("since", "", "only display feeds since a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
+	flags.Uint("limit", 50, "limit the number of feeds to display")
+	flags.String("since", "", "display feeds since the last run (last), a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
 
 	root.initVersion()
 	root.initFollow()
@@ -107,18 +110,9 @@ func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	sinceFlag := cmd.Flag("since").Value.String()
-	since := time.Time{}
-	if sinceFlag != "" {
-		d, err := utils.ParseDuration(sinceFlag)
-		if err == nil {
-			since = r.time.Now().Add(-d)
-		} else {
-			since, err = utils.ParseDateTime(sinceFlag)
-			if err != nil {
-				return fmt.Errorf("invalid since value: %v", err)
-			}
-		}
+	since, err := r.parseSinceFlag(cmd.Flag("since").Value.String())
+	if err != nil {
+		return err
 	}
 	opts := &internal.FeedOptions{
 		List:  cmd.Flag("list").Value.String(),
@@ -126,4 +120,22 @@ func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
 		Since: since,
 	}
 	return r.feed.Feed(opts)
+}
+
+func (r *Root) parseSinceFlag(flag string) (time.Time, error) {
+	if flag == "" {
+		return time.Time{}, nil
+	}
+	if flag == "last" {
+		config, err := r.storage.LoadConfig()
+		if err != nil {
+			return time.Time{}, fmt.Errorf("failed to load config: %v", err)
+		}
+		return config.LastRun, nil
+	}
+	d, err := utils.ParseDuration(flag)
+	if err == nil {
+		return r.time.Now().Add(-d), nil
+	}
+	return utils.ParseDateTime(flag)
 }

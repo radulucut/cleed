@@ -33,6 +33,9 @@ cleed --since "2024-01-01 12:03:04"
 # Display feeds since a specific period
 cleed --since "1d"
 
+# Display feeds since the last run
+cleed --since last
+
 # Display feeds from a specific list and limit the number of feeds
 cleed --list my-list --limit 10
 ```

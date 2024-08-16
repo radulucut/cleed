@@ -45,9 +45,7 @@ brews:
     repository:
       owner: radulucut
       name: homebrew-cleed
-    commit_author:
-      name: radulucut
-      email: git@radulucut.com
+      token: "{{ .Env.GORELEASER_TOKEN }}"
 
 scoops:
   - name: cleed
@@ -56,9 +54,7 @@ scoops:
     repository:
       owner: radulucut
       name: scoop-cleed
-    commit_author:
-      name: radulucut
-      email: git@radulucut.com
+      token: "{{ .Env.GORELEASER_TOKEN }}"
 
 changelog:
   sort: asc

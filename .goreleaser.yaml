@@ -45,6 +45,9 @@ brews:
     repository:
       owner: radulucut
       name: homebrew-cleed
+    commit_author:
+      name: radulucut
+      email: git@radulucut.com
 
 scoops:
   - name: cleed
@@ -53,6 +56,9 @@ scoops:
     repository:
       owner: radulucut
       name: scoop-cleed
+    commit_author:
+      name: radulucut
+      email: git@radulucut.com
 
 changelog:
   sort: asc

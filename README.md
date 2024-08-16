@@ -18,7 +18,7 @@ brew install cleed
 #### Windows - Scoop
 
 ```bash
-scoop bucket add cleed
+scoop bucket add cleed https://github.com/radulucut/scoop-cleed
 scoop install cleed
 ```
 

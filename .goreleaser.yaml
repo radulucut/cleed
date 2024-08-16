@@ -38,6 +38,30 @@ archives:
       - goos: windows
         format: zip
 
+brews:
+  - name: cleed
+    homepage: https://github.com/radulucut/cleed
+    description: A simple feed reader for the command line
+    repository:
+      owner: radulucut
+      name: cleed
+    commit_author:
+      name: radulucut
+      email: git@radulucut.com
+
+winget:
+  - name: cleed
+    publisher: Radu Lucuț
+    short_description: A simple feed reader for the command line
+    homepage: https://github.com/radulucut/cleed
+    license: MIT
+    repository:
+      owner: radulucut
+      name: cleed
+    commit_author:
+      name: radulucut
+      email: git@radulucut.com
+
 changelog:
   sort: asc
   filters:

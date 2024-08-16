@@ -44,23 +44,15 @@ brews:
     description: A simple feed reader for the command line
     repository:
       owner: radulucut
-      name: cleed
-    commit_author:
-      name: radulucut
-      email: git@radulucut.com
+      name: homebrew-cleed
 
-winget:
+scoops:
   - name: cleed
-    publisher: Radu Lucuț
-    short_description: A simple feed reader for the command line
     homepage: https://github.com/radulucut/cleed
-    license: MIT
+    description: A simple feed reader for the command line
     repository:
       owner: radulucut
-      name: cleed
-    commit_author:
-      name: radulucut
-      email: git@radulucut.com
+      name: scoop-cleed
 
 changelog:
   sort: asc

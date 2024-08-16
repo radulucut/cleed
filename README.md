@@ -6,6 +6,32 @@ Simple feed reader for the command line.
 
 ![Screenshot](./screenshot.png)
 
+## Installation
+
+#### MacOS - Homebrew
+
+```bash
+brew tap radulucut/cleed
+brew install cleed
+```
+
+#### Windows - Scoop
+
+```bash
+scoop bucket add cleed
+scoop install cleed
+```
+
+#### From source
+
+```bash
+go run main.go
+```
+
+#### Binary
+
+Download the latest binary from the [releases](https://github.com/radulucut/cleed/releases) page.
+
 ## Usage
 
 #### Follow a feed

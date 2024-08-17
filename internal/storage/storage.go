@@ -53,7 +53,8 @@ func (s *LocalStorage) Init(version string) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			s.config = &Config{
-				Version: version,
+				Version:  version,
+				ColorMap: make(map[uint8]uint8),
 			}
 			err = s.SaveConfig()
 		}

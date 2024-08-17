@@ -11,8 +11,10 @@ const (
 )
 
 type Config struct {
-	Version string    `json:"version"`
-	LastRun time.Time `json:"lastRun"`
+	Version  string          `json:"version"`
+	LastRun  time.Time       `json:"lastRun"`
+	Styling  uint8           `json:"styling"` // 0: default, 1: enabled, 2: disabled
+	ColorMap map[uint8]uint8 `json:"colorMap"`
 }
 
 func (s *LocalStorage) LoadConfig() (*Config, error) {
@@ -31,6 +33,9 @@ func (s *LocalStorage) LoadConfig() (*Config, error) {
 	err = json.Unmarshal(b, s.config)
 	if err != nil {
 		return nil, err
+	}
+	if s.config.ColorMap == nil {
+		s.config.ColorMap = make(map[uint8]uint8)
 	}
 	return s.config, nil
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +47,90 @@ func NewTerminalFeed(
 
 func (f *TerminalFeed) SetAgent(agent string) {
 	f.agent = agent
+}
+
+func (f *TerminalFeed) DisplayConfig() error {
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	styling := "default"
+	if config.Styling == 0 {
+		styling = "enabled"
+	} else if config.Styling == 1 {
+		styling = "disabled"
+	}
+	f.printer.Println("Styling:", styling)
+	f.printer.Print("Color map:")
+	for k, v := range config.ColorMap {
+		f.printer.Printf(" %d:%d", k, v)
+	}
+	f.printer.Println()
+	return nil
+}
+
+func (f *TerminalFeed) SetStyling(v uint8) error {
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	if v > 2 {
+		return utils.NewInternalError("invalid value for styling")
+	}
+	config.Styling = v
+	err = f.storage.SaveConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to save config: " + err.Error())
+	}
+	f.printer.Println("styling was updated")
+	return nil
+}
+
+func (f *TerminalFeed) UpdateColorMap(mappings string) error {
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	if mappings == "" {
+		config.ColorMap = make(map[uint8]uint8)
+	} else {
+		colors := strings.Split(mappings, ",")
+		for i := range colors {
+			parts := strings.Split(colors[i], ":")
+			if len(parts) == 0 {
+				return utils.NewInternalError("failed to parse color mapping: " + colors[i])
+			}
+			left, err := strconv.Atoi(parts[0])
+			if err != nil {
+				return utils.NewInternalError("failed to parse color mapping: " + parts[0])
+			}
+			if len(parts) == 1 || parts[1] == "" {
+				delete(config.ColorMap, uint8(left))
+			} else {
+				right, err := strconv.Atoi(parts[1])
+				if err != nil {
+					return utils.NewInternalError("failed to parse color mapping: " + parts[1])
+				}
+				config.ColorMap[uint8(left)] = uint8(right)
+			}
+		}
+	}
+	err = f.storage.SaveConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to save config: " + err.Error())
+	}
+	f.printer.Println("color map updated")
+	return nil
+}
+
+func (f *TerminalFeed) DisplayColorRange() {
+	styling := f.printer.GetStyling()
+	f.printer.SetStyling(true)
+	for i := 0; i < 256; i++ {
+		f.printer.Print(f.printer.ColorForeground(fmt.Sprintf("%d ", i), uint8(i)))
+	}
+	f.printer.Println()
+	f.printer.SetStyling(styling)
 }
 
 func (f *TerminalFeed) Follow(urls []string, list string) error {
@@ -124,7 +210,11 @@ type FeedOptions struct {
 }
 
 func (f *TerminalFeed) Feed(opts *FeedOptions) error {
-	items, err := f.processFeeds(opts)
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	items, err := f.processFeeds(opts, config)
 	if err != nil {
 		return err
 	}
@@ -148,40 +238,38 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 	if opts.Limit > 0 {
 		l = min(len(items), opts.Limit)
 	}
-	cellMax := [2]int{}
+	cellMax := [1]int{}
 	for i := l - 1; i >= 0; i-- {
 		fi := items[i]
 		fi.PublishedRelative = utils.Relative(f.time.Now().Unix() - fi.Item.PublishedParsed.Unix())
 		cellMax[0] = max(cellMax[0], runewidth.StringWidth(fi.Feed.Title), len(fi.PublishedRelative))
-		cellMax[1] = max(cellMax[1], runewidth.StringWidth(fi.Item.Title), runewidth.StringWidth(fi.Item.Link))
 	}
 	cellMax[0] = min(cellMax[0], 30)
+	secondaryTextColor := mapColor(7, config)
+	highlightColor := mapColor(10, config)
 	for i := l - 1; i >= 0; i-- {
 		fi := items[i]
 		newMark := ""
 		if fi.IsNew {
-			newMark = f.printer.ColorForeground("• ", 10)
+			newMark = f.printer.ColorForeground("• ", highlightColor)
 		}
 		f.printer.Print(
 			f.printer.ColorForeground(runewidth.FillRight(runewidth.Truncate(fi.Feed.Title, cellMax[0], "..."), cellMax[0]), fi.FeedColor),
 			"  ",
 			newMark+fi.Item.Title,
 			"\n",
-			f.printer.ColorForeground(runewidth.FillRight(fi.PublishedRelative, cellMax[0]), 7),
+			f.printer.ColorForeground(runewidth.FillRight(fi.PublishedRelative, cellMax[0]), secondaryTextColor),
 			"  ",
-			f.printer.ColorForeground(fi.Item.Link, 7),
+			f.printer.ColorForeground(fi.Item.Link, secondaryTextColor),
 			"\n\n",
 		)
 	}
-	config, _ := f.storage.LoadConfig()
-	if config != nil {
-		config.LastRun = f.time.Now()
-		f.storage.SaveConfig()
-	}
+	config.LastRun = f.time.Now()
+	f.storage.SaveConfig()
 	return nil
 }
 
-func (f *TerminalFeed) processFeeds(opts *FeedOptions) ([]*FeedItem, error) {
+func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) ([]*FeedItem, error) {
 	var err error
 	lists := make([]string, 0)
 	if opts.List != "" {
@@ -233,7 +321,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions) ([]*FeedItem, error) {
 			defer mx.Unlock()
 			color, ok := feedColorMap[feed.Title]
 			if !ok {
-				color = uint8(len(feedColorMap) % 231)
+				color = mapColor(uint8(len(feedColorMap)%256), config)
 				feedColorMap[feed.Title] = color
 			}
 			for _, feedItem := range feed.Items {
@@ -312,4 +400,11 @@ func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (bool, string, err
 	}
 	err = f.storage.SaveFeedCache(bodyReader, feed.URL)
 	return true, res.Header.Get("ETag"), err
+}
+
+func mapColor(color uint8, config *storage.Config) uint8 {
+	if c, ok := config.ColorMap[color]; ok {
+		return c
+	}
+	return color
 }

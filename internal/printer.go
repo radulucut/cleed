@@ -74,6 +74,14 @@ func (p *Printer) ColorBackground(s string, color uint8) string {
 	return fmt.Sprintf("\033[48;5;%dm%s\033[0m", color, s)
 }
 
+func (p *Printer) GetStyling() bool {
+	return !p.disableStyling
+}
+
+func (p *Printer) SetStyling(enable bool) {
+	p.disableStyling = !enable
+}
+
 func (p *Printer) GetSize() (width, height int) {
 	f, ok := p.OutWriter.(*os.File)
 	if !ok {

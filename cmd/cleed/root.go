@@ -61,6 +61,14 @@ func NewRoot(
 		return nil, fmt.Errorf("failed to initialize storage: %v", err)
 	}
 
+	config, err := root.storage.LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %v", err)
+	}
+	if config.Styling != 0 {
+		root.printer.SetStyling(config.Styling == 1)
+	}
+
 	root.Cmd = &cobra.Command{
 		Use:   "cleed",
 		Short: "A command line feed reader",
@@ -101,6 +109,7 @@ Examples:
 	root.initFollow()
 	root.initUnfollow()
 	root.initList()
+	root.initConfig()
 
 	return root, nil
 }

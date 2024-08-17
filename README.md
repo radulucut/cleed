@@ -85,3 +85,31 @@ cleed list
 # Show all feeds in a list
 cleed list mylist
 ```
+
+#### Configuration
+
+```bash
+# Display configuration
+cleed config
+
+# Disable styling
+cleed config --styling=false
+
+# Map color 0 to 230 and color 1 to 213
+cleed config --map-colors=0:230,1:213
+
+# Remove color mapping for color 0
+cleed config --map-colors=0:
+
+# Clear all color mappings
+cleed config --map-colors=
+
+# Display color range. Useful for finding colors to map
+cleed config --color-range
+```
+
+> **Color mapping**
+>
+> You can map the colors used in the feed reader to any color you want. This is useful if certain colors are not visible in your terminal based on the color scheme that you are using.
+>
+> Run `cleed config --color-range` to see the color range and map the colors that you want using the `cleed config --map-colors` command.

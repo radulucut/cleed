@@ -93,7 +93,7 @@ cleed list mylist
 cleed config
 
 # Disable styling
-cleed config --styling=false
+cleed config --styling=2
 
 # Map color 0 to 230 and color 1 to 213
 cleed config --map-colors=0:230,1:213
@@ -106,6 +106,9 @@ cleed config --map-colors=
 
 # Display color range. Useful for finding colors to map
 cleed config --color-range
+
+# Enable run summary
+cleed config --summary=1
 ```
 
 > **Color mapping**

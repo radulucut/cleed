@@ -15,7 +15,7 @@ Examples:
   cleed config
 
   # Disable styling
-  cleed config --styling=false
+  cleed config --styling=2
 
   # Map color 0 to 230 and color 1 to 213
   cleed config --map-colors=0:230,1:213
@@ -28,12 +28,16 @@ Examples:
 
   # Display color range. Useful for finding colors to map
   cleed config --color-range
+
+  # Enable run summary
+  cleed config --summary=1
 `,
 		RunE: r.RunConfig,
 	}
 
 	flags := cmd.Flags()
 	flags.Uint8("styling", 0, "disable or enable styling (0: default, 1: enable, 2: disable)")
+	flags.Uint8("summary", 0, "disable or enable summary (0: disable, 1: enable)")
 	flags.String("map-colors", "", "map colors to other colors, e.g. 0:230,1:213. Use --color-range to check available colors")
 	flags.Bool("color-range", false, "display color range. Useful for finding colors to map")
 
@@ -47,6 +51,13 @@ func (r *Root) RunConfig(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		return r.feed.SetStyling(styling)
+	}
+	if cmd.Flag("summary").Changed {
+		summary, err := cmd.Flags().GetUint8("summary")
+		if err != nil {
+			return err
+		}
+		return r.feed.SetSummary(summary)
 	}
 	if cmd.Flag("map-colors").Changed {
 		return r.feed.UpdateColorMap(cmd.Flag("map-colors").Value.String())

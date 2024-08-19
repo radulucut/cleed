@@ -66,6 +66,11 @@ func (f *TerminalFeed) DisplayConfig() error {
 		f.printer.Printf(" %d:%d", k, v)
 	}
 	f.printer.Println()
+	summary := "disabled"
+	if config.Summary == 1 {
+		summary = "enabled"
+	}
+	f.printer.Println("Summary:", summary)
 	return nil
 }
 
@@ -83,6 +88,23 @@ func (f *TerminalFeed) SetStyling(v uint8) error {
 		return utils.NewInternalError("failed to save config: " + err.Error())
 	}
 	f.printer.Println("styling was updated")
+	return nil
+}
+
+func (f *TerminalFeed) SetSummary(v uint8) error {
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	if v > 1 {
+		return utils.NewInternalError("invalid value for summary")
+	}
+	config.Summary = v
+	err = f.storage.SaveConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to save config: " + err.Error())
+	}
+	f.printer.Println("summary was updated")
 	return nil
 }
 
@@ -209,12 +231,24 @@ type FeedOptions struct {
 	Since time.Time
 }
 
+type RunSummary struct {
+	Start        time.Time
+	FeedsCount   int
+	FeedsCached  int
+	FeedsFetched int
+	ItemsCount   int
+	ItemsShown   int
+}
+
 func (f *TerminalFeed) Feed(opts *FeedOptions) error {
+	summary := &RunSummary{
+		Start: f.time.Now(),
+	}
 	config, err := f.storage.LoadConfig()
 	if err != nil {
 		return utils.NewInternalError("failed to load config: " + err.Error())
 	}
-	items, err := f.processFeeds(opts, config)
+	items, err := f.processFeeds(opts, config, summary)
 	if err != nil {
 		return err
 	}
@@ -266,10 +300,25 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 	}
 	config.LastRun = f.time.Now()
 	f.storage.SaveConfig()
+	if config.Summary == 1 {
+		summary.ItemsShown = l
+		f.printSummary(summary)
+	}
 	return nil
 }
 
-func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) ([]*FeedItem, error) {
+func (f *TerminalFeed) printSummary(s *RunSummary) {
+	f.printer.Printf("Displayed %s from %s (%d cached, %d fetched) with %s in %.2fs\n",
+		utils.Pluralize(int64(s.ItemsShown), "item"),
+		utils.Pluralize(int64(s.FeedsCount), "feed"),
+		s.FeedsCached,
+		s.FeedsFetched,
+		utils.Pluralize(int64(s.ItemsCount), "item"),
+		f.time.Now().Sub(s.Start).Seconds(),
+	)
+}
+
+func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, summary *RunSummary) ([]*FeedItem, error) {
 	var err error
 	lists := make([]string, 0)
 	if opts.List != "" {
@@ -287,6 +336,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) (
 	for i := range lists {
 		f.storage.LoadFeedsFromList(feeds, lists[i])
 	}
+	summary.FeedsCount = len(feeds)
 	cacheInfo, err := f.storage.LoadCacheInfo()
 	if err != nil {
 		return nil, utils.NewInternalError("failed to load cache info: " + err.Error())
@@ -342,6 +392,9 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) (
 			if res.Changed {
 				ci.ETag = res.ETag
 				ci.LastCheck = f.time.Now()
+				summary.FeedsFetched++
+			} else {
+				summary.FeedsCached++
 			}
 			if res.FetchAfter.After(ci.FetchAfter) {
 				ci.FetchAfter = res.FetchAfter
@@ -353,6 +406,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) (
 	if err != nil {
 		f.printer.ErrPrintln("failed to save cache informaton:", err)
 	}
+	summary.ItemsCount = len(items)
 	return items, nil
 }
 
@@ -397,7 +451,6 @@ func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (*FetchResult, err
 		return nil, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode == http.StatusNotModified {
 		return &FetchResult{
 			Changed:    false,
@@ -456,7 +509,7 @@ func parseMaxAge(cacheControl string) time.Duration {
 		if strings.HasPrefix(part, "max-age=") {
 			seconds, err := strconv.ParseInt(part[8:], 10, 64)
 			if err == nil {
-				return time.Duration(seconds) * time.Second
+				return time.Duration(max(seconds, 60)) * time.Second
 			}
 			break
 		}

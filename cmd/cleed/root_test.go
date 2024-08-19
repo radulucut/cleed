@@ -134,6 +134,133 @@ RSS Feed        • Item 1
 	assert.Equal(t, atom, string(b))
 }
 
+func Test_Feed_With_Summary(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+	storage.Init("0.1.0")
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := storage.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Summary = 1
+	err = storage.SaveConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rss := createDefaultRSS()
+	atom := createDefaultAtom()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/rss" {
+			w.Header().Set("ETag", "123")
+			w.Write([]byte(rss))
+		} else if r.URL.Path == "/atom" {
+			w.Write([]byte(atom))
+		}
+	}))
+	defer server.Close()
+
+	err = os.WriteFile(path.Join(listsDir, "default"),
+		[]byte(fmt.Sprintf("%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/rss",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(path.Join(listsDir, "test"),
+		[]byte(fmt.Sprintf("%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/atom",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, `RSS Feed        • Item 2
+1688 days ago   https://rss-feed.com/item-2/
+
+Atom Feed       • Item 2
+1594 days ago   https://atom-feed.com/item-2/
+
+Atom Feed       • Item 1
+18 hours ago    https://atom-feed.com/item-1/
+
+RSS Feed        • Item 1
+15 minutes ago  https://rss-feed.com/item-1/
+
+Displayed 4 items from 2 feeds (0 cached, 2 fetched) with 4 items in 0.00s
+`, out.String())
+
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cacheDir := path.Join(userCacheDir, "cleed_test")
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Len(t, files, 3)
+
+	cacheInfo, err := storage.LoadCacheInfo()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(cacheInfo))
+	assert.Equal(t, &_storage.CacheInfoItem{
+		URL:        server.URL + "/rss",
+		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		ETag:       "123",
+		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
+	}, cacheInfo[server.URL+"/rss"])
+	assert.Equal(t, &_storage.CacheInfoItem{
+		URL:        server.URL + "/atom",
+		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		ETag:       "",
+		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
+	}, cacheInfo[server.URL+"/atom"])
+
+	b, err := os.ReadFile(path.Join(cacheDir, "feed_"+url.QueryEscape(server.URL+"/rss")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, rss, string(b))
+
+	b, err = os.ReadFile(path.Join(cacheDir, "feed_"+url.QueryEscape(server.URL+"/atom")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, atom, string(b))
+}
+
 func Test_Feed_Specific_List(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -216,14 +216,16 @@ func Test_Unfollow_Clean_Cache(t *testing.T) {
 
 	err = storage.SaveCacheInfo(map[string]*_storage.CacheInfoItem{
 		"https://example.com": {
-			URL:       "https://example.com",
-			LastCheck: defaultCurrentTime,
-			ETag:      "etag",
+			URL:        "https://example.com",
+			LastCheck:  defaultCurrentTime,
+			ETag:       "etag",
+			FetchAfter: time.Unix(0, 0),
 		},
 		"https://test.com": {
-			URL:       "https://test.com",
-			LastCheck: defaultCurrentTime,
-			ETag:      "etag",
+			URL:        "https://test.com",
+			LastCheck:  defaultCurrentTime,
+			ETag:       "etag",
+			FetchAfter: time.Unix(0, 0),
 		},
 	})
 	if err != nil {
@@ -266,9 +268,10 @@ https://test.com was removed from the list
 	}
 	assert.Len(t, cacheInfo, 1)
 	assert.Equal(t, &_storage.CacheInfoItem{
-		URL:       "https://test.com",
-		LastCheck: time.Unix(defaultCurrentTime.Unix(), 0),
-		ETag:      "etag",
+		URL:        "https://test.com",
+		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		ETag:       "etag",
+		FetchAfter: time.Unix(0, 0),
 	}, cacheInfo["https://test.com"])
 
 	assert.NoFileExists(t, path.Join(cacheDir, "feed_"+url.QueryEscape("https://example.com")))

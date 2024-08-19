@@ -299,15 +299,16 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) (
 		ci := cacheInfo[url]
 		if ci == nil {
 			ci = &storage.CacheInfoItem{
-				URL:       url,
-				LastCheck: time.Time{},
+				URL:        url,
+				LastCheck:  time.Unix(0, 0),
+				FetchAfter: time.Unix(0, 0),
 			}
 			cacheInfo[url] = ci
 		}
 		wg.Add(1)
 		go func(ci *storage.CacheInfoItem) {
 			defer wg.Done()
-			changed, etag, err := f.fetchFeed(ci)
+			res, err := f.fetchFeed(ci)
 			if err != nil {
 				f.printer.ErrPrintf("failed to fetch feed: %s: %v\n", ci.URL, err)
 				return
@@ -338,9 +339,12 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config) (
 					IsNew:     feedItem.PublishedParsed.After(ci.LastCheck),
 				})
 			}
-			if changed {
-				ci.ETag = etag
+			if res.Changed {
+				ci.ETag = res.ETag
 				ci.LastCheck = f.time.Now()
+			}
+			if res.FetchAfter.After(ci.FetchAfter) {
+				ci.FetchAfter = res.FetchAfter
 			}
 		}(ci)
 	}
@@ -361,12 +365,23 @@ func (f *TerminalFeed) parseFeed(url string) (*gofeed.Feed, error) {
 	return f.parser.Parse(fc)
 }
 
-func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (bool, string, error) {
+type FetchResult struct {
+	Changed    bool
+	ETag       string
+	FetchAfter time.Time
+}
+
+func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (*FetchResult, error) {
+	if feed.FetchAfter.After(f.time.Now()) {
+		return &FetchResult{
+			Changed: false,
+		}, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", feed.URL, nil)
 	if err != nil {
-		return false, "", utils.NewInternalError(fmt.Sprintf("failed to create request: %v", err))
+		return nil, utils.NewInternalError(fmt.Sprintf("failed to create request: %v", err))
 	}
 	req.Header.Set("User-Agent", f.agent)
 	if feed.ETag != "" {
@@ -379,14 +394,24 @@ func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (bool, string, err
 	req.Header.Set("Accept-Encoding", "br, gzip")
 	res, err := f.http.Do(req)
 	if err != nil {
-		return false, "", err
+		return nil, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode == http.StatusNotModified {
-		return false, "", nil
+		return &FetchResult{
+			Changed:    false,
+			FetchAfter: f.time.Now().Add(parseMaxAge(res.Header.Get("Cache-Control"))),
+		}, nil
+	}
+	if res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusServiceUnavailable {
+		return &FetchResult{
+			Changed:    false,
+			FetchAfter: f.parseRetryAfter(res.Header.Get("Retry-After")),
+		}, nil
 	}
 	if res.StatusCode != http.StatusOK {
-		return false, "", fmt.Errorf("unexpected status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 	var bodyReader io.Reader = res.Body
 	contentEncoding := res.Header.Get("Content-Encoding")
@@ -395,11 +420,48 @@ func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (bool, string, err
 	} else if contentEncoding == "gzip" {
 		bodyReader, err = gzip.NewReader(res.Body)
 		if err != nil {
-			return false, "", err
+			return nil, err
 		}
 	}
 	err = f.storage.SaveFeedCache(bodyReader, feed.URL)
-	return true, res.Header.Get("ETag"), err
+	return &FetchResult{
+		Changed:    true,
+		ETag:       res.Header.Get("ETag"),
+		FetchAfter: f.time.Now().Add(parseMaxAge(res.Header.Get("Cache-Control"))),
+	}, err
+}
+
+func (f *TerminalFeed) parseRetryAfter(retryAfter string) time.Time {
+	if retryAfter == "" {
+		return f.time.Now().Add(5 * time.Minute)
+	}
+	retryAfterSeconds, err := strconv.Atoi(retryAfter)
+	if err == nil {
+		return f.time.Now().Add(time.Duration(retryAfterSeconds) * time.Second)
+	}
+	retryAfterTime, err := time.Parse(time.RFC1123, retryAfter)
+	if err == nil {
+		return retryAfterTime
+	}
+	return f.time.Now().Add(5 * time.Minute)
+}
+
+func parseMaxAge(cacheControl string) time.Duration {
+	if cacheControl == "" {
+		return 60 * time.Second
+	}
+	parts := strings.Split(cacheControl, ",")
+	for i := range parts {
+		part := strings.TrimSpace(parts[i])
+		if strings.HasPrefix(part, "max-age=") {
+			seconds, err := strconv.ParseInt(part[8:], 10, 64)
+			if err == nil {
+				return time.Duration(seconds) * time.Second
+			}
+			break
+		}
+	}
+	return 60 * time.Second
 }
 
 func mapColor(color uint8, config *storage.Config) uint8 {

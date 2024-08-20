@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -149,6 +150,88 @@ func (s *LocalStorage) LoadLists() ([]string, error) {
 		lists = append(lists, file.Name())
 	}
 	return lists, nil
+}
+
+func (s *LocalStorage) RenameList(oldName, newName string) error {
+	oldPath, err := s.joinListsDir(oldName)
+	if err != nil {
+		return err
+	}
+	newPath, err := s.joinListsDir(newName)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("list already exists: %s", newName)
+	}
+	return os.Rename(oldPath, newPath)
+}
+
+func (s *LocalStorage) MergeLists(list, otherList string) error {
+	listPath, err := s.joinListsDir(list)
+	if err != nil {
+		return err
+	}
+	otherListPath, err := s.joinListsDir(otherList)
+	if err != nil {
+		return err
+	}
+	items := make(map[string]*ListItem)
+	err = s.LoadFeedsFromList(items, otherList)
+	if err != nil {
+		return err
+	}
+	err = s.LoadFeedsFromList(items, list)
+	if err != nil {
+		return err
+	}
+	listItems := make([]*ListItem, 0, len(items))
+	for _, item := range items {
+		listItems = append(listItems, item)
+	}
+	slices.SortFunc(listItems, func(a, b *ListItem) int {
+		diff := a.AddedAt.Sub(b.AddedAt)
+		if diff < 0 {
+			return -1
+		}
+		if diff > 0 {
+			return 1
+		}
+		return 0
+	})
+	b := new(bytes.Buffer)
+	for i := range listItems {
+		b.Write(getListItemLine(listItems[i].AddedAt, listItems[i].Address))
+	}
+	err = os.WriteFile(listPath, b.Bytes(), 0600)
+	if err != nil {
+		return err
+	}
+	return os.Remove(otherListPath)
+}
+
+func (s *LocalStorage) RemoveList(list string) error {
+	path, err := s.joinListsDir(list)
+	if err != nil {
+		return err
+	}
+	items, err := s.GetFeedsFromList(list)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	urls := make([]string, len(items))
+	for i := range items {
+		urls[i] = items[i].Address
+	}
+	s.tidyCachesAfterRemove(urls, list)
+	return nil
 }
 
 func (s *LocalStorage) tidyCachesAfterRemove(urls []string, list string) {

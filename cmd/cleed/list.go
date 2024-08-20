@@ -1,6 +1,8 @@
 package cleed
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 func (r *Root) initList() {
 	cmd := &cobra.Command{
@@ -14,11 +16,25 @@ Examples:
 
   # Show all feeds in a list
   cleed list mylist
+
+  # Rename a list
+  cleed list mylist --rename newlist
+
+  # Merge a list. Move all feeds from anotherlist to mylist and remove anotherlist
+  cleed list mylist --merge anotherlist
+
+  # Remove a list
+  cleed list mylist --remove
 `,
 
 		RunE: r.RunList,
 		Args: cobra.MaximumNArgs(1),
 	}
+
+	flags := cmd.Flags()
+	flags.String("rename", "", "rename a list")
+	flags.String("merge", "", "merge a list")
+	flags.Bool("remove", false, "remove a list")
 
 	r.Cmd.AddCommand(cmd)
 }
@@ -26,6 +42,17 @@ Examples:
 func (r *Root) RunList(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return r.feed.Lists()
+	}
+	rename := cmd.Flag("rename").Value.String()
+	if rename != "" {
+		return r.feed.RenameList(args[0], rename)
+	}
+	merge := cmd.Flag("merge").Value.String()
+	if merge != "" {
+		return r.feed.MergeLists(args[0], merge)
+	}
+	if cmd.Flag("remove").Changed {
+		return r.feed.RemoveList(args[0])
 	}
 	return r.feed.ListFeeds(args[0])
 }

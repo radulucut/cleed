@@ -217,6 +217,33 @@ func (f *TerminalFeed) ListFeeds(list string) error {
 	return nil
 }
 
+func (f *TerminalFeed) RenameList(oldName, newName string) error {
+	err := f.storage.RenameList(oldName, newName)
+	if err != nil {
+		return utils.NewInternalError("failed to rename list: " + err.Error())
+	}
+	f.printer.Printf("list %s was renamed to %s\n", oldName, newName)
+	return nil
+}
+
+func (f *TerminalFeed) MergeLists(list, otherList string) error {
+	err := f.storage.MergeLists(list, otherList)
+	if err != nil {
+		return utils.NewInternalError("failed to merge lists: " + err.Error())
+	}
+	f.printer.Printf("list %s was merged with %s. %s was removed\n", list, otherList, otherList)
+	return nil
+}
+
+func (f *TerminalFeed) RemoveList(list string) error {
+	err := f.storage.RemoveList(list)
+	if err != nil {
+		return utils.NewInternalError("failed to remove list: " + err.Error())
+	}
+	f.printer.Printf("list %s was removed\n", list)
+	return nil
+}
+
 type FeedItem struct {
 	Feed              *gofeed.Feed
 	Item              *gofeed.Item

@@ -84,6 +84,15 @@ cleed list
 
 # Show all feeds in a list
 cleed list mylist
+
+# Rename a list
+cleed list mylist --rename newlist
+
+# Merge a list. Move all feeds from anotherlist to mylist and remove anotherlist
+cleed list mylist --merge anotherlist
+
+# Remove a list
+cleed list mylist --remove
 ```
 
 #### Configuration

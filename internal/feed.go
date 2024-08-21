@@ -397,6 +397,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 			}
 			mx.Lock()
 			defer mx.Unlock()
+			summary.ItemsCount += len(feed.Items)
 			color, ok := feedColorMap[feed.Title]
 			if !ok {
 				color = mapColor(uint8(len(feedColorMap)%256), config)
@@ -433,7 +434,6 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 	if err != nil {
 		f.printer.ErrPrintln("failed to save cache informaton:", err)
 	}
-	summary.ItemsCount = len(items)
 	return items, nil
 }
 

@@ -924,3 +924,99 @@ func Test_Feed_Since_Last(t *testing.T) {
 	}
 	assert.Equal(t, defaultCurrentTime, config.LastRun)
 }
+
+func Test_Feed_Since_Last_With_Summary(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer server.Close()
+
+	err = os.WriteFile(path.Join(listsDir, "default"),
+		[]byte(fmt.Sprintf("%d %s\n%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/rss",
+			defaultCurrentTime.Unix(), server.URL+"/atom",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cacheDir = path.Join(cacheDir, "cleed_test")
+	err = os.MkdirAll(cacheDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = storage.SaveFeedCache(bytes.NewBufferString(createDefaultRSS()), server.URL+"/rss")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = storage.SaveFeedCache(bytes.NewBufferString(createDefaultAtom()), server.URL+"/atom")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := &_storage.Config{
+		Version: "0.1.0",
+		LastRun: time.Unix(defaultCurrentTime.Unix()-int64(10*60*60), 0), // 10 hours ago
+		Summary: 1,
+	}
+	configPath := path.Join(configDir, "cleed_test", "config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(configPath, b, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--since", "last"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, `RSS Feed        • Item 1
+15 minutes ago  https://rss-feed.com/item-1/
+
+Displayed 1 item from 2 feeds (2 cached, 0 fetched) with 4 items in 0.00s
+`, out.String())
+
+	config, err = storage.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, defaultCurrentTime, config.LastRun)
+}

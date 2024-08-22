@@ -22,11 +22,11 @@ func Execute() {
 	root, err := NewRoot(Version, time, printer, storage, feed)
 	if err != nil {
 		printer.ErrPrintf("Error: %v\n", err)
+		os.Exit(1)
 	}
 
 	err = root.Cmd.Execute()
 	if err != nil {
-		printer.ErrPrintf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }

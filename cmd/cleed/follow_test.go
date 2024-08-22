@@ -136,4 +136,14 @@ func Test_Follow_Invalid_URL(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Len(t, files, 0)
+
+	assert.Equal(t, `Error: failed to parse URL: invalid
+Usage:
+  cleed follow [feed] [flags]
+
+Flags:
+  -h, --help          help for follow
+  -L, --list string   the list to add the feed to (default "default")
+
+`, out.String())
 }

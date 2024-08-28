@@ -93,6 +93,12 @@ cleed list mylist --merge anotherlist
 
 # Remove a list
 cleed list mylist --remove
+
+# Import feeds from a file
+cleed list mylist --import-from-file feeds.txt
+
+# Export feeds to a file
+cleed list mylist --export-to-file feeds.txt
 ```
 
 #### Configuration

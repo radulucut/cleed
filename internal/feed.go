@@ -1,12 +1,14 @@
 package internal
 
 import (
+	"bufio"
 	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -241,6 +243,56 @@ func (f *TerminalFeed) RemoveList(list string) error {
 		return utils.NewInternalError("failed to remove list: " + err.Error())
 	}
 	f.printer.Printf("list %s was removed\n", list)
+	return nil
+}
+
+func (f *TerminalFeed) ImportFromFile(path, list string) error {
+	fi, err := os.Open(path)
+	if err != nil {
+		return utils.NewInternalError("failed to open file: " + err.Error())
+	}
+	defer fi.Close()
+	urls := make([]string, 0)
+	scanner := bufio.NewScanner(fi)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		urls = append(urls, line)
+	}
+	err = f.storage.AddToList(urls, list)
+	if err != nil {
+		return utils.NewInternalError("failed to save feeds: " + err.Error())
+	}
+	f.printer.Printf("added %s to list: %s\n", utils.Pluralize(int64(len(urls)), "feed"), list)
+	return nil
+}
+
+func (f *TerminalFeed) ExportToFile(path, list string) error {
+	feeds, err := f.storage.GetFeedsFromList(list)
+	if err != nil {
+		return utils.NewInternalError("failed to list feeds: " + err.Error())
+	}
+	if len(feeds) == 0 {
+		f.printer.Println("no feeds to export")
+		return nil
+	}
+	fo, err := os.Create(path)
+	if err != nil {
+		return utils.NewInternalError("failed to create file: " + err.Error())
+	}
+	defer fo.Close()
+	for i := range feeds {
+		_, err = fo.WriteString(feeds[i].Address + "\n")
+		if err != nil {
+			return utils.NewInternalError("failed to write to file: " + err.Error())
+		}
+	}
+	f.printer.Printf("exported %s to %s\n", utils.Pluralize(int64(len(feeds)), "feed"), path)
 	return nil
 }
 

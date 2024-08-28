@@ -25,6 +25,12 @@ Examples:
 
   # Remove a list
   cleed list mylist --remove
+
+  # Import feeds from a file
+  cleed list mylist --import-from-file feeds.txt
+
+  # Export feeds to a file
+  cleed list mylist --export-to-file feeds.txt
 `,
 
 		RunE: r.RunList,
@@ -35,6 +41,8 @@ Examples:
 	flags.String("rename", "", "rename a list")
 	flags.String("merge", "", "merge a list")
 	flags.Bool("remove", false, "remove a list")
+	flags.String("import-from-file", "", "import feeds from a file. Newline separated URLs")
+	flags.String("export-to-file", "", "export feeds to a file. Newline separated URLs")
 
 	r.Cmd.AddCommand(cmd)
 }
@@ -53,6 +61,14 @@ func (r *Root) RunList(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flag("remove").Changed {
 		return r.feed.RemoveList(args[0])
+	}
+	importFromFile := cmd.Flag("import-from-file").Value.String()
+	if importFromFile != "" {
+		return r.feed.ImportFromFile(importFromFile, args[0])
+	}
+	exportToFile := cmd.Flag("export-to-file").Value.String()
+	if exportToFile != "" {
+		return r.feed.ExportToFile(exportToFile, args[0])
 	}
 	return r.feed.ListFeeds(args[0])
 }

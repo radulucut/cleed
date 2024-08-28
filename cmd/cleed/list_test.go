@@ -410,3 +410,126 @@ func Test_List_Remove(t *testing.T) {
 	}
 	assert.Equal(t, "test", string(b))
 }
+
+func Test_List_ImportFromFile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(path.Join(listsDir, "import"),
+		[]byte(fmt.Sprintf("%d %s\n%d %s\n",
+			defaultCurrentTime.Unix(), "https://example.com",
+			defaultCurrentTime.Unix()+300, "https://test.com",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	importFilePath := path.Join(listsDir, "test2")
+	err = os.WriteFile(importFilePath,
+		[]byte(fmt.Sprintf("%s\n%s\n%s\n%s\n",
+			"https://example0.com",
+			" https://test.com",
+			"# comment",
+			"https://example2.com",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "list", "test", "--import-from-file", importFilePath}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, "added 3 feeds to list: test\n", out.String())
+
+	items, err := storage.GetFeedsFromList("test")
+	assert.NoError(t, err)
+	assert.Equal(t, []*_storage.ListItem{
+		{AddedAt: time.Unix(defaultCurrentTime.Unix(), 0), Address: "https://example.com"},
+		{AddedAt: time.Unix(defaultCurrentTime.Unix()+300, 0), Address: "https://test.com"},
+		{AddedAt: time.Unix(defaultCurrentTime.Unix(), 0), Address: "https://example0.com"},
+		{AddedAt: time.Unix(defaultCurrentTime.Unix(), 0), Address: "https://example2.com"},
+	}, items)
+}
+
+func Test_List_ExportToFile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = os.WriteFile(path.Join(listsDir, "test"),
+		[]byte(fmt.Sprintf("%d %s\n%d %s\n",
+			defaultCurrentTime.Unix(), "https://example.com",
+			defaultCurrentTime.Unix()+300, "https://test.com",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	exportPath := path.Join(listsDir, "export")
+	os.Args = []string{"cleed", "list", "test", "--export-to-file", exportPath}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("exported 2 feeds to %s\n", exportPath), out.String())
+
+	b, err := os.ReadFile(exportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, `https://example.com
+https://test.com
+`, string(b))
+}

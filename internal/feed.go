@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -292,6 +293,64 @@ func (f *TerminalFeed) ExportToFile(path, list string) error {
 			return utils.NewInternalError("failed to write to file: " + err.Error())
 		}
 	}
+	f.printer.Printf("exported %s to %s\n", utils.Pluralize(int64(len(feeds)), "feed"), path)
+	return nil
+}
+
+func (f *TerminalFeed) ImportFromOPML(path, list string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return utils.NewInternalError("failed to read file: " + err.Error())
+	}
+	opml := &utils.OPML{}
+	err = xml.Unmarshal(b, opml)
+	if err != nil {
+		return utils.NewInternalError("failed to parse OPML: " + err.Error())
+	}
+	urls := make([]string, 0, len(opml.Body.Oultines))
+	if len(opml.Body.Oultines) == 0 {
+		return utils.NewInternalError("no feeds found in OPML")
+	}
+	outlines := opml.Body.Oultines[0].Outlines
+	for _, o := range outlines {
+		urls = append(urls, o.XMLURL)
+	}
+	err = f.storage.AddToList(urls, list)
+	if err != nil {
+		return utils.NewInternalError("failed to save feeds: " + err.Error())
+	}
+	f.printer.Printf("added %s to list: %s\n", utils.Pluralize(int64(len(urls)), "feed"), list)
+	return nil
+}
+
+func (f *TerminalFeed) ExportToOPML(path, list string) error {
+	feeds, err := f.storage.GetFeedsFromList(list)
+	if err != nil {
+		return utils.NewInternalError("failed to list feeds: " + err.Error())
+	}
+	if len(feeds) == 0 {
+		f.printer.Println("no feeds to export")
+		return nil
+	}
+	fo, err := os.Create(path)
+	if err != nil {
+		return utils.NewInternalError("failed to create file: " + err.Error())
+	}
+	defer fo.Close()
+	fmt.Fprintf(fo, `%s<opml version="1.0">
+  <head>
+    <title>%s</title>
+  </head>
+  <body>
+	<outline text="%s">
+`, xml.Header, list, list)
+	for i := range feeds {
+		fmt.Fprintf(fo, `      <outline xmlUrl="%s"/>
+`, feeds[i].Address)
+	}
+	fmt.Fprint(fo, `	</outline>
+  </body>
+</opml>`)
 	f.printer.Printf("exported %s to %s\n", utils.Pluralize(int64(len(feeds)), "feed"), path)
 	return nil
 }

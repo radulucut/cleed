@@ -29,8 +29,14 @@ Examples:
   # Import feeds from a file
   cleed list mylist --import-from-file feeds.txt
 
+  # Import feeds from an OPML file
+  cleed list mylist --import-from-opml feeds.opml
+
   # Export feeds to a file
   cleed list mylist --export-to-file feeds.txt
+
+  # Export feeds to an OPML file
+  cleed list mylist --export-to-opml feeds.opml
 `,
 
 		RunE: r.RunList,
@@ -42,7 +48,9 @@ Examples:
 	flags.String("merge", "", "merge a list")
 	flags.Bool("remove", false, "remove a list")
 	flags.String("import-from-file", "", "import feeds from a file. Newline separated URLs")
+	flags.String("import-from-opml", "", "import feeds from an OPML file")
 	flags.String("export-to-file", "", "export feeds to a file. Newline separated URLs")
+	flags.String("export-to-opml", "", "export feeds to an OPML file")
 
 	r.Cmd.AddCommand(cmd)
 }
@@ -69,6 +77,14 @@ func (r *Root) RunList(cmd *cobra.Command, args []string) error {
 	exportToFile := cmd.Flag("export-to-file").Value.String()
 	if exportToFile != "" {
 		return r.feed.ExportToFile(exportToFile, args[0])
+	}
+	importFromOPML := cmd.Flag("import-from-opml").Value.String()
+	if importFromOPML != "" {
+		return r.feed.ImportFromOPML(importFromOPML, args[0])
+	}
+	exportToOPML := cmd.Flag("export-to-opml").Value.String()
+	if exportToOPML != "" {
+		return r.feed.ExportToOPML(exportToOPML, args[0])
 	}
 	return r.feed.ListFeeds(args[0])
 }

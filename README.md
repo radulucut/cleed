@@ -97,8 +97,14 @@ cleed list mylist --remove
 # Import feeds from a file
 cleed list mylist --import-from-file feeds.txt
 
+# Import feeds from an OPML file
+cleed list mylist --import-from-opml feeds.opml
+
 # Export feeds to a file
 cleed list mylist --export-to-file feeds.txt
+
+# Export feeds to an OPML file
+cleed list mylist --export-to-opml feeds.opml
 ```
 
 #### Configuration

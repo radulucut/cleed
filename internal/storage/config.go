@@ -22,7 +22,7 @@ func (s *LocalStorage) LoadConfig() (*Config, error) {
 	if s.config != nil {
 		return s.config, nil
 	}
-	configPath, err := s.joinConfigDir(configFile)
+	configPath, err := s.JoinConfigDir(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (s *LocalStorage) SaveConfig() error {
 	if s.config == nil {
 		return nil
 	}
-	configPath, err := s.joinConfigDir(configFile)
+	configPath, err := s.JoinConfigDir(configFile)
 	if err != nil {
 		return err
 	}

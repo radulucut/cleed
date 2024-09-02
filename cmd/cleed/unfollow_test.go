@@ -217,13 +217,13 @@ func Test_Unfollow_Clean_Cache(t *testing.T) {
 	err = storage.SaveCacheInfo(map[string]*_storage.CacheInfoItem{
 		"https://example.com": {
 			URL:        "https://example.com",
-			LastCheck:  defaultCurrentTime,
+			LastFetch:  defaultCurrentTime,
 			ETag:       "etag",
 			FetchAfter: time.Unix(0, 0),
 		},
 		"https://test.com": {
 			URL:        "https://test.com",
-			LastCheck:  defaultCurrentTime,
+			LastFetch:  defaultCurrentTime,
 			ETag:       "etag",
 			FetchAfter: time.Unix(0, 0),
 		},
@@ -269,7 +269,7 @@ https://test.com was removed from the list
 	assert.Len(t, cacheInfo, 1)
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        "https://test.com",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "etag",
 		FetchAfter: time.Unix(0, 0),
 	}, cacheInfo["https://test.com"])

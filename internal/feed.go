@@ -355,6 +355,53 @@ func (f *TerminalFeed) ExportToOPML(path, list string) error {
 	return nil
 }
 
+func (t *TerminalFeed) ShowConfigPath() error {
+	path, err := t.storage.JoinConfigDir("")
+	if err != nil {
+		return utils.NewInternalError("failed to get config path: " + err.Error())
+	}
+	t.printer.Println(path)
+	return nil
+}
+
+func (t *TerminalFeed) ShowCachePath() error {
+	path, err := t.storage.JoinCacheDir("")
+	if err != nil {
+		return utils.NewInternalError("failed to get cache path: " + err.Error())
+	}
+	t.printer.Println(path)
+	return nil
+}
+
+func (t *TerminalFeed) ShowCacheInfo() error {
+	cacheInfo, err := t.storage.LoadCacheInfo()
+	if err != nil {
+		return utils.NewInternalError("failed to load cache info: " + err.Error())
+	}
+	cellMax := [1]int{}
+	items := make([]*storage.CacheInfoItem, 0, len(cacheInfo))
+	for k, v := range cacheInfo {
+		cellMax[0] = max(cellMax[0], len(k))
+		items = append(items, v)
+	}
+	t.printer.Print(runewidth.FillRight("URL", cellMax[0]))
+	t.printer.Println("  Last fetch           Fetch after")
+	slices.SortFunc(items, func(a, b *storage.CacheInfoItem) int {
+		if a.URL < b.URL {
+			return -1
+		}
+		if a.URL > b.URL {
+			return 1
+		}
+		return 0
+	})
+	for i := range items {
+		t.printer.Print(runewidth.FillRight(items[i].URL, cellMax[0]))
+		t.printer.Printf("  %s  %s\n", items[i].LastFetch.Format("2006-01-02 15:04:05"), items[i].FetchAfter.Format("2006-01-02 15:04:05"))
+	}
+	return nil
+}
+
 type FeedItem struct {
 	Feed              *gofeed.Feed
 	Item              *gofeed.Item
@@ -488,7 +535,7 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 		if ci == nil {
 			ci = &storage.CacheInfoItem{
 				URL:        url,
-				LastCheck:  time.Unix(0, 0),
+				LastFetch:  time.Unix(0, 0),
 				FetchAfter: time.Unix(0, 0),
 			}
 			cacheInfo[url] = ci
@@ -525,12 +572,12 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 					Feed:      feed,
 					Item:      feedItem,
 					FeedColor: color,
-					IsNew:     feedItem.PublishedParsed.After(ci.LastCheck),
+					IsNew:     feedItem.PublishedParsed.After(ci.LastFetch),
 				})
 			}
 			if res.Changed {
 				ci.ETag = res.ETag
-				ci.LastCheck = f.time.Now()
+				ci.LastFetch = f.time.Now()
 				summary.FeedsFetched++
 			} else {
 				summary.FeedsCached++
@@ -579,8 +626,8 @@ func (f *TerminalFeed) fetchFeed(feed *storage.CacheInfoItem) (*FetchResult, err
 	if feed.ETag != "" {
 		req.Header.Set("If-None-Match", feed.ETag)
 	}
-	if !feed.LastCheck.IsZero() {
-		req.Header.Set("If-Modified-Since", feed.LastCheck.Format(http.TimeFormat))
+	if !feed.LastFetch.IsZero() {
+		req.Header.Set("If-Modified-Since", feed.LastFetch.Format(http.TimeFormat))
 	}
 	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml")
 	req.Header.Set("Accept-Encoding", "br, gzip")

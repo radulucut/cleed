@@ -29,7 +29,7 @@ func NewLocalStorage(
 }
 
 func (s *LocalStorage) Init(version string) error {
-	configDir, err := s.joinConfigDir("")
+	configDir, err := s.JoinConfigDir("")
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (s *LocalStorage) Init(version string) error {
 	if err != nil {
 		return err
 	}
-	cacheDir, err := s.joinCacheDir("")
+	cacheDir, err := s.JoinCacheDir("")
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (s *LocalStorage) Migrate() error {
 }
 
 func (s *LocalStorage) ClearAll() error {
-	configDir, err := s.joinConfigDir("")
+	configDir, err := s.JoinConfigDir("")
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (s *LocalStorage) ClearAll() error {
 	if err != nil {
 		return err
 	}
-	cacheDir, err := s.joinCacheDir("")
+	cacheDir, err := s.JoinCacheDir("")
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (s *LocalStorage) ClearAll() error {
 	return nil
 }
 
-func (s *LocalStorage) joinCacheDir(file string) (string, error) {
+func (s *LocalStorage) JoinCacheDir(file string) (string, error) {
 	base, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
@@ -96,7 +96,7 @@ func (s *LocalStorage) joinCacheDir(file string) (string, error) {
 	return path.Join(base, s.name, file), nil
 }
 
-func (s *LocalStorage) joinConfigDir(file string) (string, error) {
+func (s *LocalStorage) JoinConfigDir(file string) (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -105,7 +105,7 @@ func (s *LocalStorage) joinConfigDir(file string) (string, error) {
 }
 
 func (s *LocalStorage) joinListsDir(file string) (string, error) {
-	base, err := s.joinConfigDir(listsDir)
+	base, err := s.JoinConfigDir(listsDir)
 	if err != nil {
 		return "", err
 	}

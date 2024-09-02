@@ -324,19 +324,19 @@ func Test_List_Remove(t *testing.T) {
 	err = storage.SaveCacheInfo(map[string]*_storage.CacheInfoItem{
 		"https://example.com": {
 			URL:        "https://example.com",
-			LastCheck:  defaultCurrentTime,
+			LastFetch:  defaultCurrentTime,
 			ETag:       "etag",
 			FetchAfter: time.Unix(0, 0),
 		},
 		"https://test.com": {
 			URL:        "https://test.com",
-			LastCheck:  defaultCurrentTime,
+			LastFetch:  defaultCurrentTime,
 			ETag:       "etag",
 			FetchAfter: time.Unix(0, 0),
 		},
 		"https://example2.com": {
 			URL:        "https://example2.com",
-			LastCheck:  defaultCurrentTime,
+			LastFetch:  defaultCurrentTime,
 			ETag:       "etag",
 			FetchAfter: time.Unix(0, 0),
 		},
@@ -385,13 +385,13 @@ func Test_List_Remove(t *testing.T) {
 	assert.Len(t, cacheInfo, 2)
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        "https://example.com",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "etag",
 		FetchAfter: time.Unix(0, 0),
 	}, cacheInfo["https://example.com"])
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        "https://test.com",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "etag",
 		FetchAfter: time.Unix(0, 0),
 	}, cacheInfo["https://test.com"])

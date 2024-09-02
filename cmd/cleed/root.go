@@ -104,6 +104,9 @@ Examples:
 	flags.StringP("list", "L", "", "list to display feeds from")
 	flags.Uint("limit", 50, "limit the number of feeds to display")
 	flags.String("since", "", "display feeds since the last run (last), a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
+	flags.Bool("config-path", false, "show the path to the config directory")
+	flags.Bool("cache-path", false, "show the path to the cache directory")
+	flags.Bool("cache-info", false, "show the cache information")
 
 	root.initVersion()
 	root.initFollow()
@@ -115,6 +118,15 @@ Examples:
 }
 
 func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
+	if cmd.Flag("config-path").Changed {
+		return r.feed.ShowConfigPath()
+	}
+	if cmd.Flag("cache-path").Changed {
+		return r.feed.ShowCachePath()
+	}
+	if cmd.Flag("cache-info").Changed {
+		return r.feed.ShowCacheInfo()
+	}
 	limit, err := cmd.Flags().GetUint("limit")
 	if err != nil {
 		return err

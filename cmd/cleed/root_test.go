@@ -110,13 +110,13 @@ RSS Feed        • Item 1
 	assert.Equal(t, 2, len(cacheInfo))
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL + "/rss",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "123",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
 	}, cacheInfo[server.URL+"/rss"])
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL + "/atom",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
 	}, cacheInfo[server.URL+"/atom"])
@@ -237,13 +237,13 @@ Displayed 4 items from 2 feeds (0 cached, 2 fetched) with 4 items in 0.00s
 	assert.Equal(t, 2, len(cacheInfo))
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL + "/rss",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "123",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
 	}, cacheInfo[server.URL+"/rss"])
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL + "/atom",
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+60, 0),
 	}, cacheInfo[server.URL+"/atom"])
@@ -455,7 +455,7 @@ RSS Feed        • Item 1
 	assert.Equal(t, 1, len(cacheInfo))
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL,
-		LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+		LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 		ETag:       "",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+300, 0),
 	}, cacheInfo[server.URL])
@@ -536,7 +536,7 @@ RSS Feed        • Item 1
 	assert.Equal(t, 1, len(cacheInfo))
 	assert.Equal(t, &_storage.CacheInfoItem{
 		URL:        server.URL,
-		LastCheck:  time.Unix(0, 0),
+		LastFetch:  time.Unix(0, 0),
 		ETag:       "",
 		FetchAfter: time.Unix(defaultCurrentTime.Unix()+300, 0),
 	}, cacheInfo[server.URL])
@@ -591,7 +591,7 @@ func Test_Feed_FetchAfter_Load_From_Cache(t *testing.T) {
 	storage.SaveCacheInfo(map[string]*_storage.CacheInfoItem{
 		"https://example.com": {
 			URL:        "https://example.com",
-			LastCheck:  time.Unix(defaultCurrentTime.Unix(), 0),
+			LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
 			ETag:       "etag",
 			FetchAfter: time.Unix(defaultCurrentTime.Unix()+300, 0),
 		},
@@ -1019,4 +1019,113 @@ Displayed 1 item from 2 feeds (2 cached, 0 fetched) with 4 items in 0.00s
 		t.Fatal(err)
 	}
 	assert.Equal(t, defaultCurrentTime, config.LastRun)
+}
+
+func Test_Config_Dir(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--config-path"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, path.Join(configDir, "cleed_test")+"\n", out.String())
+}
+
+func Test_Cache_Dir(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--cache-path"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, path.Join(cacheDir, "cleed_test")+"\n", out.String())
+}
+
+func Test_Cache_Info(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	storage.Init("0.1.0")
+
+	cacheInfo := map[string]*_storage.CacheInfoItem{
+		"https://example.com/rss": {
+			URL:        "https://example.com/rss",
+			LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
+			ETag:       "etag",
+			FetchAfter: time.Unix(defaultCurrentTime.Unix()+300, 0),
+		},
+		"https://example.com/atom": {
+			URL:        "https://example.com/atom",
+			LastFetch:  time.Unix(defaultCurrentTime.Unix(), 0),
+			ETag:       "",
+			FetchAfter: time.Unix(defaultCurrentTime.Unix()+300, 0),
+		},
+	}
+	err := storage.SaveCacheInfo(cacheInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--cache-info"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, `URL                       Last fetch           Fetch after
+https://example.com/atom  2024-01-01 02:00:00  2024-01-01 02:05:00
+https://example.com/rss   2024-01-01 02:00:00  2024-01-01 02:05:00
+`, out.String())
 }

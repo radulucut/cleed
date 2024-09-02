@@ -16,7 +16,7 @@ const (
 )
 
 type CacheInfoItem struct {
-	LastCheck  time.Time
+	LastFetch  time.Time
 	FetchAfter time.Time
 	ETag       string
 	URL        string
@@ -24,7 +24,7 @@ type CacheInfoItem struct {
 
 func (s *LocalStorage) LoadCacheInfo() (map[string]*CacheInfoItem, error) {
 	cacheinfo := make(map[string]*CacheInfoItem)
-	path, err := s.joinCacheDir(cacheInfoFile)
+	path, err := s.JoinCacheDir(cacheInfoFile)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *LocalStorage) LoadCacheInfo() (map[string]*CacheInfoItem, error) {
 }
 
 func (s *LocalStorage) SaveCacheInfo(cacheinfo map[string]*CacheInfoItem) error {
-	path, err := s.joinCacheDir(cacheInfoFile)
+	path, err := s.JoinCacheDir(cacheInfoFile)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (s *LocalStorage) SaveCacheInfo(cacheinfo map[string]*CacheInfoItem) error 
 }
 
 func (s *LocalStorage) SaveFeedCache(r io.Reader, name string) error {
-	path, err := s.joinCacheDir("feed_" + url.QueryEscape(name))
+	path, err := s.JoinCacheDir("feed_" + url.QueryEscape(name))
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (s *LocalStorage) SaveFeedCache(r io.Reader, name string) error {
 }
 
 func (s *LocalStorage) OpenFeedCache(name string) (io.ReadCloser, error) {
-	path, err := s.joinCacheDir("feed_" + url.QueryEscape(name))
+	path, err := s.JoinCacheDir("feed_" + url.QueryEscape(name))
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (s *LocalStorage) RemoveFeedCaches(names []string) error {
 		return err
 	}
 	for i := range names {
-		path, err := s.joinCacheDir("feed_" + url.QueryEscape(names[i]))
+		path, err := s.JoinCacheDir("feed_" + url.QueryEscape(names[i]))
 		if err != nil {
 			continue
 		}
@@ -113,7 +113,7 @@ func (s *LocalStorage) RemoveFeedCaches(names []string) error {
 func getCacheInfoItemLine(item *CacheInfoItem) []byte {
 	return []byte(fmt.Sprintf("%s %d %s %d\n",
 		item.URL,
-		item.LastCheck.Unix(),
+		item.LastFetch.Unix(),
 		url.QueryEscape(item.ETag),
 		item.FetchAfter.Unix()),
 	)
@@ -137,7 +137,7 @@ func parseCacheInfoItem(line string) (*CacheInfoItem, error) {
 		fetchAfter, _ = strconv.ParseInt(parts[3], 10, 64)
 	}
 	return &CacheInfoItem{
-		LastCheck:  time.Unix(lastCheck, 0),
+		LastFetch:  time.Unix(lastCheck, 0),
 		ETag:       etag,
 		URL:        parts[0],
 		FetchAfter: time.Unix(fetchAfter, 0),

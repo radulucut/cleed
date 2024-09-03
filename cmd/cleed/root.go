@@ -90,8 +90,11 @@ Examples:
   # Display feeds since the last run
   cleed --since last
 
-  # Display feeds from a specific list and limit the number of feeds
+  # Display feeds from a specific list and limit the number of items
   cleed --list my-list --limit 10
+
+  # Search for items
+  cleed --search "keyword" --limit 10
 `,
 		Version: version,
 		RunE:    root.RunRoot,
@@ -102,8 +105,9 @@ Examples:
 
 	flags := root.Cmd.Flags()
 	flags.StringP("list", "L", "", "list to display feeds from")
-	flags.Uint("limit", 50, "limit the number of feeds to display")
+	flags.Uint("limit", 50, "limit the number of items to display")
 	flags.String("since", "", "display feeds since the last run (last), a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
+	flags.String("search", "", "search for items (title, categories)")
 	flags.Bool("config-path", false, "show the path to the config directory")
 	flags.Bool("cache-path", false, "show the path to the cache directory")
 	flags.Bool("cache-info", false, "show the cache information")
@@ -139,6 +143,9 @@ func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
 		List:  cmd.Flag("list").Value.String(),
 		Limit: int(limit),
 		Since: since,
+	}
+	if cmd.Flag("search").Changed {
+		return r.feed.Search(cmd.Flag("search").Value.String(), opts)
 	}
 	return r.feed.Feed(opts)
 }

@@ -62,8 +62,11 @@ cleed --since "1d"
 # Display feeds since the last run
 cleed --since last
 
-# Display feeds from a specific list and limit the number of feeds
+# Display feeds from a specific list and limit the number of items
 cleed --list my-list --limit 10
+
+# Search for items
+cleed --search "keyword" --limit 10
 ```
 
 #### Unfollow a feed

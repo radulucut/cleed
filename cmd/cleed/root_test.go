@@ -134,6 +134,91 @@ RSS Feed        • Item 1
 	assert.Equal(t, atom, string(b))
 }
 
+func Test_Feed_Search(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := []*FeedItem{
+		{
+			Title:      "Keyword 1",
+			Link:       "https://rss-feed.com/item-1/",
+			Published:  "Wed, 31 Dec 2023 23:45:00 GMT",
+			Categories: []string{"category1", "category2"},
+		},
+		{
+			Title:      "keywords",
+			Link:       "https://rss-feed.com/item-1/",
+			Published:  "Wed, 31 Dec 2023 23:45:00 GMT",
+			Categories: []string{"category1", "category2"},
+		},
+		{
+			Title:      "keywordxaxa",
+			Link:       "https://rss-feed.com/item-1/",
+			Published:  "Wed, 31 Dec 2023 23:45:00 GMT",
+			Categories: []string{"category1", "category2"},
+		},
+		{
+			Title:      "zzzz",
+			Link:       "https://rss-feed.com/item-1/",
+			Published:  "Wed, 31 Dec 2023 23:45:00 GMT",
+			Categories: []string{"keywordzz", "category2"},
+		},
+	}
+	rss := createRSS(items)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(rss))
+	}))
+	defer server.Close()
+
+	err = os.WriteFile(path.Join(listsDir, "default"),
+		[]byte(fmt.Sprintf("%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/rss",
+		),
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+	feed.SetAgent("cleed/test")
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--search", "keyword"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+	assert.Equal(t, `RSS Feed        • zzzz
+15 minutes ago  https://rss-feed.com/item-1/
+
+RSS Feed        • keywords
+15 minutes ago  https://rss-feed.com/item-1/
+
+RSS Feed        • Keyword 1
+15 minutes ago  https://rss-feed.com/item-1/
+
+`, out.String())
+}
+
 func Test_Feed_With_Summary(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

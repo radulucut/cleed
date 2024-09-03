@@ -355,26 +355,26 @@ func (f *TerminalFeed) ExportToOPML(path, list string) error {
 	return nil
 }
 
-func (t *TerminalFeed) ShowConfigPath() error {
-	path, err := t.storage.JoinConfigDir("")
+func (f *TerminalFeed) ShowConfigPath() error {
+	path, err := f.storage.JoinConfigDir("")
 	if err != nil {
 		return utils.NewInternalError("failed to get config path: " + err.Error())
 	}
-	t.printer.Println(path)
+	f.printer.Println(path)
 	return nil
 }
 
-func (t *TerminalFeed) ShowCachePath() error {
-	path, err := t.storage.JoinCacheDir("")
+func (f *TerminalFeed) ShowCachePath() error {
+	path, err := f.storage.JoinCacheDir("")
 	if err != nil {
 		return utils.NewInternalError("failed to get cache path: " + err.Error())
 	}
-	t.printer.Println(path)
+	f.printer.Println(path)
 	return nil
 }
 
-func (t *TerminalFeed) ShowCacheInfo() error {
-	cacheInfo, err := t.storage.LoadCacheInfo()
+func (f *TerminalFeed) ShowCacheInfo() error {
+	cacheInfo, err := f.storage.LoadCacheInfo()
 	if err != nil {
 		return utils.NewInternalError("failed to load cache info: " + err.Error())
 	}
@@ -384,8 +384,8 @@ func (t *TerminalFeed) ShowCacheInfo() error {
 		cellMax[0] = max(cellMax[0], len(k))
 		items = append(items, v)
 	}
-	t.printer.Print(runewidth.FillRight("URL", cellMax[0]))
-	t.printer.Println("  Last fetch           Fetch after")
+	f.printer.Print(runewidth.FillRight("URL", cellMax[0]))
+	f.printer.Println("  Last fetch           Fetch after")
 	slices.SortFunc(items, func(a, b *storage.CacheInfoItem) int {
 		if a.URL < b.URL {
 			return -1
@@ -396,9 +396,45 @@ func (t *TerminalFeed) ShowCacheInfo() error {
 		return 0
 	})
 	for i := range items {
-		t.printer.Print(runewidth.FillRight(items[i].URL, cellMax[0]))
-		t.printer.Printf("  %s  %s\n", items[i].LastFetch.Format("2006-01-02 15:04:05"), items[i].FetchAfter.Format("2006-01-02 15:04:05"))
+		f.printer.Print(runewidth.FillRight(items[i].URL, cellMax[0]))
+		f.printer.Printf("  %s  %s\n", items[i].LastFetch.Format("2006-01-02 15:04:05"), items[i].FetchAfter.Format("2006-01-02 15:04:05"))
 	}
+	return nil
+}
+
+type FeedOptions struct {
+	List  string
+	Query [][]rune
+	Limit int
+	Since time.Time
+}
+
+func (f *TerminalFeed) Search(query string, opts *FeedOptions) error {
+	summary := &RunSummary{
+		Start: f.time.Now(),
+	}
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	opts.Query = utils.Tokenize(query, nil)
+	if len(opts.Query) == 0 {
+		return utils.NewInternalError("query is empty")
+	}
+	items, err := f.processFeeds(opts, config, summary)
+	if err != nil {
+		return err
+	}
+	slices.SortFunc(items, func(a, b *FeedItem) int {
+		if a.Score > b.Score {
+			return 1
+		}
+		if a.Score < b.Score {
+			return -1
+		}
+		return 0
+	})
+	f.outputItems(items, config, summary, opts)
 	return nil
 }
 
@@ -408,12 +444,7 @@ type FeedItem struct {
 	PublishedRelative string
 	FeedColor         uint8
 	IsNew             bool
-}
-
-type FeedOptions struct {
-	List  string
-	Limit int
-	Since time.Time
+	Score             int
 }
 
 type RunSummary struct {
@@ -449,10 +480,22 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 		}
 		return 0
 	})
+	config.LastRun = f.time.Now()
+	f.storage.SaveConfig()
+	f.outputItems(items, config, summary, opts)
+	return nil
+}
+
+func (f *TerminalFeed) outputItems(
+	items []*FeedItem,
+	config *storage.Config,
+	summary *RunSummary,
+	opts *FeedOptions,
+) {
 	l := len(items)
 	if l == 0 {
 		f.printer.ErrPrintln("no items to display")
-		return nil
+		return
 	}
 	if opts.Limit > 0 {
 		l = min(len(items), opts.Limit)
@@ -483,13 +526,10 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 			"\n\n",
 		)
 	}
-	config.LastRun = f.time.Now()
-	f.storage.SaveConfig()
 	if config.Summary == 1 {
 		summary.ItemsShown = l
 		f.printSummary(summary)
 	}
-	return nil
 }
 
 func (f *TerminalFeed) printSummary(s *RunSummary) {
@@ -568,11 +608,19 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 				if !opts.Since.IsZero() && feedItem.PublishedParsed.Before(opts.Since) {
 					continue
 				}
+				score := 0
+				if len(opts.Query) > 0 {
+					score = utils.Score(opts.Query, f.tokenizeItem(feedItem))
+				}
+				if score == -1 {
+					continue
+				}
 				items = append(items, &FeedItem{
 					Feed:      feed,
 					Item:      feedItem,
 					FeedColor: color,
 					IsNew:     feedItem.PublishedParsed.After(ci.LastFetch),
+					Score:     score,
 				})
 			}
 			if res.Changed {
@@ -593,6 +641,14 @@ func (f *TerminalFeed) processFeeds(opts *FeedOptions, config *storage.Config, s
 		f.printer.ErrPrintln("failed to save cache informaton:", err)
 	}
 	return items, nil
+}
+
+func (f *TerminalFeed) tokenizeItem(item *gofeed.Item) [][]rune {
+	tokens := utils.Tokenize(item.Title, nil)
+	for i := range item.Categories {
+		tokens = utils.Tokenize(item.Categories[i], tokens)
+	}
+	return tokens
 }
 
 func (f *TerminalFeed) parseFeed(url string) (*gofeed.Feed, error) {

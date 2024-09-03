@@ -18,6 +18,31 @@ func localStorageCleanup(t *testing.T, storage *storage.LocalStorage) {
 	}
 }
 
+type FeedItem struct {
+	Title      string
+	Link       string
+	Published  string
+	Categories []string
+}
+
+func createRSS(items []*FeedItem) string {
+	var itemsStr = ""
+	for _, item := range items {
+		itemsStr += "<item><title>" +
+			item.Title + "</title><link>" +
+			item.Link + "</link><pubDate>" +
+			item.Published + "</pubDate>"
+		for i := range item.Categories {
+			itemsStr += "<category>" + item.Categories[i] + "</category>"
+		}
+		itemsStr += "</item>"
+	}
+	return `<rss version="2.0"><channel>
+<title>RSS Feed</title>
+<description>Feed description</description>
+<link>https://rss-feed.com/</link>` + itemsStr + "</channel></rss>"
+}
+
 func createDefaultRSS() string {
 	return `<rss version="2.0">
 	<channel>

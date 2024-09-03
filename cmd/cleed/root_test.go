@@ -1209,8 +1209,13 @@ func Test_Cache_Info(t *testing.T) {
 
 	err = root.Cmd.Execute()
 	assert.NoError(t, err)
-	assert.Equal(t, `URL                       Last fetch           Fetch after
-https://example.com/atom  2024-01-01 02:00:00  2024-01-01 02:05:00
-https://example.com/rss   2024-01-01 02:00:00  2024-01-01 02:05:00
-`, out.String())
+	assert.Equal(t, fmt.Sprintf(`URL                       Last fetch           Fetch after
+https://example.com/atom  %s  %s
+https://example.com/rss   %s  %s
+`,
+		time.Unix(defaultCurrentTime.Unix(), 0).Format("2006-01-02 15:04:05"),
+		time.Unix(defaultCurrentTime.Unix()+300, 0).Format("2006-01-02 15:04:05"),
+		time.Unix(defaultCurrentTime.Unix(), 0).Format("2006-01-02 15:04:05"),
+		time.Unix(defaultCurrentTime.Unix()+300, 0).Format("2006-01-02 15:04:05"),
+	), out.String())
 }

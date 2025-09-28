@@ -105,6 +105,12 @@ Examples:
   # Search for items in cached feeds
   cleed --search "keyword" -C
 
+  # Search for items using a regular expression (https://github.com/google/re2/wiki/Syntax)
+  cleed --searchr "^keyword"
+
+  # Search for items using a regular expression case insensitive
+  cleed --searchr "(?i)keyword"
+
   # Using a proxy
   cleed --proxy socks5://user:password@proxy.example.com:8080
 `,
@@ -120,6 +126,7 @@ Examples:
 	flags.Uint("limit", 50, "limit the number of items to display")
 	flags.String("since", "", "display feeds since the last run (last), a specific date (e.g. 2024-01-01 12:03:04) or duration (e.g. 1d)")
 	flags.String("search", "", "search for items (title, categories)")
+	flags.String("searchr", "", "search for items using regular expressions (title)")
 	flags.String("proxy", "", "proxy to use for requests")
 	flags.BoolP("cached-only", "C", false, "display or search only from cached feeds")
 	flags.Bool("config-path", false, "show the path to the config directory")
@@ -174,6 +181,9 @@ func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
 	}
 	if cmd.Flag("search").Changed {
 		return r.feed.Search(cmd.Flag("search").Value.String(), opts)
+	}
+	if cmd.Flag("searchr").Changed {
+		return r.feed.SearchRegexp(cmd.Flag("searchr").Value.String(), opts)
 	}
 	return r.feed.Feed(opts)
 }

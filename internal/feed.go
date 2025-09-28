@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -181,6 +182,7 @@ func (f *TerminalFeed) ShowCacheInfo() error {
 type FeedOptions struct {
 	List       string
 	Query      [][]rune
+	Regexp     *regexp.Regexp
 	Limit      int
 	Since      time.Time
 	Proxy      *url.URL
@@ -209,6 +211,38 @@ func (f *TerminalFeed) Search(query string, opts *FeedOptions) error {
 		}
 		if a.Score < b.Score {
 			return -1
+		}
+		return 0
+	})
+	f.outputItems(items, config, summary, opts)
+	return nil
+}
+
+func (f *TerminalFeed) SearchRegexp(query string, opts *FeedOptions) error {
+	summary := &RunSummary{
+		Start: f.time.Now(),
+	}
+	config, err := f.storage.LoadConfig()
+	if err != nil {
+		return utils.NewInternalError("failed to load config: " + err.Error())
+	}
+	opts.Regexp, err = regexp.Compile(query)
+	if err != nil {
+		return utils.NewInternalError("failed to compile expression: " + err.Error())
+	}
+	items, err := f.processFeeds(opts, config, summary)
+	if err != nil {
+		return err
+	}
+	slices.SortFunc(items, func(a, b *FeedItem) int {
+		if a.Item.PublishedParsed == nil || b.Item.PublishedParsed == nil {
+			return 0
+		}
+		if a.Item.PublishedParsed.After(*b.Item.PublishedParsed) {
+			return -1
+		}
+		if a.Item.PublishedParsed.Before(*b.Item.PublishedParsed) {
+			return 1
 		}
 		return 0
 	})
@@ -461,11 +495,16 @@ func (f *TerminalFeed) processFeedItems(
 		if config.HideFutureItems && feedItem.PublishedParsed.After(currentTime) {
 			continue
 		}
+		// default search
 		score := 0
 		if len(opts.Query) > 0 {
 			score = utils.Score(opts.Query, f.tokenizeItem(feedItem))
+			if score == -1 {
+				continue
+			}
 		}
-		if score == -1 {
+		// regex search
+		if opts.Regexp != nil && !opts.Regexp.MatchString(feedItem.Title) {
 			continue
 		}
 		items = append(items, &FeedItem{

@@ -71,6 +71,12 @@ cleed --search "keyword" --limit 10
 # Search for items in cached feeds
 cleed --search "keyword" -C
 
+# Search for items using a regular expression (https://github.com/google/re2/wiki/Syntax)
+cleed --searchr "^keyword"
+
+# Search for items using a regular expression case insensitive
+cleed --searchr "(?i)keyword"
+
 # Using a proxy
 cleed --proxy socks5://user:password@proxy.example.com:8080
 ```

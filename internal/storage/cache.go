@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"net/url"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mmcdole/gofeed"
 )
 
 const (
@@ -88,6 +91,48 @@ func (s *LocalStorage) OpenFeedCache(name string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
+func (s *LocalStorage) SaveParsedFeedCache(feed *gofeed.Feed, name string) error {
+	path, err := s.JoinCacheDir("parsed_" + url.QueryEscape(name))
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	encoder := gob.NewEncoder(f)
+	return encoder.Encode(feed)
+}
+
+func (s *LocalStorage) LoadParsedFeedCache(name string) (*gofeed.Feed, error) {
+	path, err := s.JoinCacheDir("parsed_" + url.QueryEscape(name))
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	decoder := gob.NewDecoder(f)
+	var feed gofeed.Feed
+	err = decoder.Decode(&feed)
+	if err != nil {
+		return nil, err
+	}
+	return &feed, nil
+}
+
+func (s *LocalStorage) HasParsedFeedCache(name string) bool {
+	path, err := s.JoinCacheDir("parsed_" + url.QueryEscape(name))
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return err == nil
+}
+
 func (s *LocalStorage) RemoveFeedCaches(names []string) error {
 	cacheinfo, err := s.LoadCacheInfo()
 	if err != nil {
@@ -101,11 +146,14 @@ func (s *LocalStorage) RemoveFeedCaches(names []string) error {
 		return err
 	}
 	for i := range names {
-		path, err := s.JoinCacheDir("feed_" + url.QueryEscape(names[i]))
-		if err != nil {
-			continue
+		rawPath, err := s.JoinCacheDir("feed_" + url.QueryEscape(names[i]))
+		if err == nil {
+			os.Remove(rawPath)
 		}
-		os.Remove(path)
+		parsedPath, err := s.JoinCacheDir("parsed_" + url.QueryEscape(names[i]))
+		if err == nil {
+			os.Remove(parsedPath)
+		}
 	}
 	return nil
 }

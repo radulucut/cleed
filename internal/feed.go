@@ -187,6 +187,8 @@ type FeedOptions struct {
 	Since      time.Time
 	Proxy      *url.URL
 	CachedOnly bool
+	// Raw prints each item on its own line: fields tab-separated; timestamps UTC RFC3339 (ISO 8601).
+	Raw bool
 }
 
 func (f *TerminalFeed) Search(query string, opts *FeedOptions) error {
@@ -298,6 +300,50 @@ func (f *TerminalFeed) Feed(opts *FeedOptions) error {
 	return nil
 }
 
+func escapeRawField(s string) string {
+	s = strings.ReplaceAll(s, "\t", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+// rawTSVField strips HTML from typical feed strings and escapes for a single TSV field.
+func rawTSVField(s string) string {
+	return escapeRawField(utils.PlainTextFromHTML(s))
+}
+
+// rawItemDescription returns plain text from the item body for --raw output: no length cap.
+// When both description and content exist, it prefers the longest non-redundant text (full article
+// when content starts with the same teaser as description, otherwise both parts joined).
+func rawItemDescription(item *gofeed.Item) string {
+	desc := strings.TrimSpace(item.Description)
+	cont := strings.TrimSpace(item.Content)
+	plainD := ""
+	if desc != "" {
+		plainD = utils.PlainTextFromHTML(desc)
+	}
+	plainC := ""
+	if cont != "" {
+		plainC = utils.PlainTextFromHTML(cont)
+	}
+	switch {
+	case plainD == "" && plainC == "":
+		return ""
+	case plainD == "":
+		return escapeRawField(plainC)
+	case plainC == "":
+		return escapeRawField(plainD)
+	case plainC == plainD:
+		return escapeRawField(plainD)
+	case strings.HasPrefix(plainC, plainD):
+		return escapeRawField(plainC)
+	case strings.HasPrefix(plainD, plainC):
+		return escapeRawField(plainD)
+	default:
+		return escapeRawField(plainD + " " + plainC)
+	}
+}
+
 func (f *TerminalFeed) outputItems(
 	items []*FeedItem,
 	config *storage.Config,
@@ -311,6 +357,41 @@ func (f *TerminalFeed) outputItems(
 	}
 	if opts.Limit > 0 {
 		l = min(len(items), opts.Limit)
+	}
+	if opts.Raw {
+		for i := 0; i < l; i++ {
+			fi := items[i]
+			if strings.HasPrefix(fi.Item.Link, "/") {
+				baseURL := strings.TrimSuffix(fi.Feed.Link, "/")
+				fi.Item.Link = baseURL + fi.Item.Link
+			}
+			pub := ""
+			if fi.Item.PublishedParsed != nil && !fi.Item.PublishedParsed.IsZero() {
+				pub = fi.Item.PublishedParsed.UTC().Format(time.RFC3339)
+			}
+			feedLink := fi.Feed.Link
+			if feedLink == "" {
+				feedLink = fi.Feed.FeedLink
+			}
+			cats := make([]string, 0, len(fi.Item.Categories))
+			for _, c := range fi.Item.Categories {
+				cats = append(cats, utils.PlainTextFromHTML(c))
+			}
+			catsJoined := strings.Join(cats, ",")
+			fields := []string{
+				pub,
+				rawTSVField(fi.Feed.Title),
+				escapeRawField(feedLink),
+				rawTSVField(fi.Feed.Description),
+				rawTSVField(fi.Item.Title),
+				rawItemDescription(fi.Item),
+				escapeRawField(fi.Item.Link),
+				escapeRawField(catsJoined),
+				escapeRawField(fi.Item.GUID),
+			}
+			f.printer.Println(strings.Join(fields, "\t"))
+		}
+		return
 	}
 	cellMax := [1]int{}
 	for i := l - 1; i >= 0; i-- {

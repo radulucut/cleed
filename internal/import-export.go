@@ -138,9 +138,6 @@ func (f *TerminalFeed) writeOPML(fo io.Writer, list string, cachedOnly bool) (*O
 				}
 				if feed.Description != "" {
 					feed.Description = strings.TrimSpace(feed.Description)
-					if len(feed.Description) > 200 {
-						feed.Description = feed.Description[:200] + "..."
-					}
 					fmt.Fprint(fo, " description=\"")
 					xml.EscapeText(fo, []byte(feed.Description))
 					fmt.Fprint(fo, "\"")

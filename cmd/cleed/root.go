@@ -113,6 +113,9 @@ Examples:
 
   # Using a proxy
   cleed --proxy socks5://user:password@proxy.example.com:8080
+
+  # One tab-separated line per item; times in ISO-8601 (RFC3339)
+  cleed --raw
 `,
 		Version: version,
 		RunE:    root.RunRoot,
@@ -129,6 +132,7 @@ Examples:
 	flags.String("searchr", "", "search for items using regular expressions (title)")
 	flags.String("proxy", "", "proxy to use for requests")
 	flags.BoolP("cached-only", "C", false, "display or search only from cached feeds")
+	flags.BoolP("raw", "r", false, "print each item on its own line: tab-separated fields (published, feed title, feed link, feed description, item title, item description, item link, categories, guid); HTML stripped from titles, descriptions, and categories; timestamps UTC RFC3339")
 	flags.Bool("config-path", false, "show the path to the config directory")
 	flags.Bool("cache-path", false, "show the path to the cache directory")
 	flags.Bool("cache-info", false, "show the cache information")
@@ -168,6 +172,10 @@ func (r *Root) RunRoot(cmd *cobra.Command, args []string) error {
 		Since: since,
 	}
 	opts.CachedOnly, err = cmd.Flags().GetBool("cached-only")
+	if err != nil {
+		return err
+	}
+	opts.Raw, err = cmd.Flags().GetBool("raw")
 	if err != nil {
 		return err
 	}

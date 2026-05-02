@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,6 +130,91 @@ RSS Feed        • Item 1
 		t.Fatal(err)
 	}
 	assert.Equal(t, atom, string(b))
+}
+
+func Test_Feed_Raw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timeMock := mocks.NewMockTime(ctrl)
+	timeMock.EXPECT().Now().Return(defaultCurrentTime).AnyTimes()
+
+	out := new(bytes.Buffer)
+	printer := internal.NewPrinter(nil, out, out)
+	storage := _storage.NewLocalStorage("cleed_test", timeMock)
+	defer localStorageCleanup(t, storage)
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	listsDir := path.Join(configDir, "cleed_test", "lists")
+	err = os.MkdirAll(listsDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rss := createDefaultRSS()
+	atom := createDefaultAtom()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/rss" {
+			w.Header().Set("ETag", "123")
+			w.Write([]byte(rss))
+		} else if r.URL.Path == "/atom" {
+			w.Write([]byte(atom))
+		}
+	}))
+	defer server.Close()
+
+	err = os.WriteFile(path.Join(listsDir, "default"),
+		fmt.Appendf(nil, "%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/rss",
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(path.Join(listsDir, "test"),
+		fmt.Appendf(nil, "%d %s\n",
+			defaultCurrentTime.Unix(), server.URL+"/atom",
+		), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feed := internal.NewTerminalFeed(timeMock, printer, storage)
+
+	root, err := NewRoot("0.1.0", timeMock, printer, storage, feed)
+	assert.NoError(t, err)
+
+	os.Args = []string{"cleed", "--raw", "--limit", "10"}
+
+	err = root.Cmd.Execute()
+	assert.NoError(t, err)
+
+	s := out.String()
+	lines := splitLinesNoTrailingEmpty(s)
+	assert.Len(t, lines, 4, "raw mode should print one line per item (2 RSS + 2 Atom)")
+	assert.Contains(t, s, "\t", "fields should be tab-separated")
+	assert.Contains(t, s, "T", "RFC3339 timestamps contain T")
+	assert.Contains(t, s, "Z", "RFC3339 UTC timestamps end with Z")
+	assert.Contains(t, s, "RSS Feed")
+	assert.Contains(t, s, "Atom Feed")
+	assert.Contains(t, s, "RSS Feed description")
+	assert.Contains(t, s, "Atom Feed description")
+	assert.Contains(t, s, "https://rss-feed.com/")
+	assert.Contains(t, s, "First line of body. Second paragraph.")
+	assert.Contains(t, s, "Short & sweet")
+	assert.Contains(t, s, "Atom item one body.")
+	assert.Contains(t, s, "Content fallback when no summary.")
+	assert.Contains(t, s, "News & World")
+}
+
+func splitLinesNoTrailingEmpty(s string) []string {
+	s = strings.TrimSuffix(s, "\n")
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, "\n")
 }
 
 func Test_Feed_CachedOnly(t *testing.T) {

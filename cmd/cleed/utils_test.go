@@ -51,13 +51,16 @@ func createDefaultRSS() string {
 		<link>https://rss-feed.com/</link>
 		<item>
 			<title>Item 1</title>
+			<description><![CDATA[<p>First line of <b>body</b>.</p><p>Second paragraph.</p>]]></description>
 			<link>https://rss-feed.com/item-1/</link>
 			<pubDate>Wed, 31 Dec 2023 23:45:00 GMT</pubDate>
 		</item>
 		<item>
 			<title>Item 2</title>
+			<description>Short &amp; sweet</description>
 			<link>/item-2/</link>
 			<pubDate>Sat, 18 May 2019 21:00:00 GMT</pubDate>
+			<category>News &amp; <em>World</em></category>
 		</item>
 	</channel>
 </rss>`
@@ -71,11 +74,13 @@ func createDefaultAtom() string {
 	<link href="https://atom-feed.com/"/>
 	<entry>
 		<title>Item 1</title>
+		<summary type="html">&lt;p&gt;Atom item &lt;strong&gt;one&lt;/strong&gt; body.&lt;/p&gt;</summary>
 		<link href="https://atom-feed.com/item-1/"/>
 		<updated>2023-12-31T06:00:00Z</updated>
 	</entry>
 	<entry>
 		<title>Item 2</title>
+		<content type="html">&lt;p&gt;Content fallback when no summary.&lt;/p&gt;</content>
 		<link href="https://atom-feed.com/item-2/"/>
 		<updated>2019-08-20T21:00:00Z</updated>
 	</entry>

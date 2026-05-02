@@ -79,6 +79,9 @@ cleed --searchr "(?i)keyword"
 
 # Using a proxy
 cleed --proxy socks5://user:password@proxy.example.com:8080
+
+# Full raw output with each entry on a single line
+cleed --raw
 ```
 
 #### Unfollow a feed
